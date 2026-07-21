@@ -5,19 +5,12 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # =========================================================================
-# 🌊 1. KONFIGURASI HALAMAN & CSS INSTRUMEN (ULTRA-SLIM RESPONSIVE)
+# 🌊 1. KONFIGURASI HALAMAN & CSS INSTRUMEN (ULTRA-SLIM & STANDARD FONT)
 # =========================================================================
-st.set_page_config(
-    page_title="Dashboard Pasut Hibrida Pasar Ikan",
-    layout="wide",
-    page_icon="🌊",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Dashboard Pasut Hibrida Pasar Ikan", layout="wide", page_icon="🌊")
 
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
-
     /* --- FIX PEMBUNGKUS KALENDER FILTER SIDEBAR --- */
     [data-baseweb="popover"] {
         transform: scale(0.95) !important;
@@ -29,7 +22,7 @@ st.markdown("""
 
     /* Merapatkan kontainer utama ke batas paling atas layar secara aman */
     .block-container { 
-        padding-top: 3.2rem !important; 
+        padding-top: 0.5rem !important; 
         padding-bottom: 0rem !important; 
         max-width: 95% !important; 
     }
@@ -39,7 +32,13 @@ st.markdown("""
         gap: 0px !important;
     }
 
-    .stApp { background-color: #ffffff; }
+    /* Menggunakan Font Standard Profesional (Arial/Helvetica) secara Global */
+    html, body, [class*="css"], .stApp { 
+        background-color: #ffffff;
+        font-family: Arial, Helvetica, sans-serif !important;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+    }
     
     /* Menyelaraskan teks judul utama di tengah */
     .header-text { 
@@ -49,13 +48,11 @@ st.markdown("""
         margin-bottom: 0px !important;
         padding-bottom: 0px !important;
     }
+    .header-text h2 {
+        font-family: Arial, Helvetica, sans-serif !important;
+    }
 
-    /* ================= HEADER TRANSPARAN, TAPI TOMBOL SIDEBAR & MENU TETAP UTUH ================= */
-    /* CATATAN PENTING: Jangan pernah men-display:none seluruh [data-testid="stToolbar"] --
-       elemen itu adalah wadah gabungan tombol sidebar KIRI dan ikon menu (⋮) KANAN yang berisi
-       Settings/Theme. Kalau di-display:none, dua-duanya ikut hilang.
-       Untuk menyembunyikan tombol "Deploy" & opsi developer, pakai .streamlit/config.toml
-       dengan client.toolbarMode = "viewer" (lihat file terpisah), BUKAN CSS ini. */
+    /* ================= FIX HEADER TRANSPARAN & OVERFLOW ================= */
     [data-testid="stHeader"] {
         background-color: transparent !important;
         background: transparent !important;
@@ -64,7 +61,7 @@ st.markdown("""
 
     /* Mengubah tombol BUKA sidebar (hamburger ☰) menjadi widget navy solid yang stand-out */
     div[data-testid="collapsedControl"] {
-        background-color: #0B3D4C !important; /* Navy instrumen pasut */
+        background-color: #0B3D4C !important; 
         border-radius: 8px !important;
         padding: 6px !important;
         box-shadow: 0 4px 12px rgba(11, 61, 76, 0.3) !important;
@@ -83,7 +80,12 @@ st.markdown("""
         color: #F8FAFC !important;
     }
 
-    /* GAYA METRIK KUSTOM (ULTRA SLIM READING PANEL) */
+    /* Sembunyikan hanya aksesori bawaan yang mengganggu (menu titik tiga, dll) */
+    [data-testid="stToolbar"] {
+        display: none !important;
+    }
+
+    /* GAYA METRIK KUSTOM (ULTRA SLIM READING PANEL - FONT STANDAR) */
     div[data-testid="stMetric"] {
         background-color: #ffffff !important; 
         border: 1px solid #e2e8f0 !important;
@@ -100,17 +102,18 @@ st.markdown("""
     div[data-testid="stMetricLabel"] { 
         color: #64748b !important; 
         font-weight: 600 !important; 
-        font-size: 0.72rem !important; 
-        margin-bottom: -4px !important; 
+        font-size: 0.75rem !important; 
+        margin-bottom: -2px !important; 
         white-space: nowrap !important;
+        font-family: Arial, Helvetica, sans-serif !important;
     }
 
     [data-testid="stMetricValue"] { 
-        font-family: 'IBM Plex Mono', monospace !important;
-        font-size: 15px !important; 
+        font-size: 16px !important; 
         font-weight: 700 !important; 
         color: #0f172a !important; 
         white-space: nowrap !important;
+        font-family: Arial, Helvetica, sans-serif !important;
     }
 
     div[data-testid="stMetricDelta"] { display: none !important; }
@@ -126,12 +129,12 @@ st.markdown("""
         border-left: 5px solid #0B3D4C !important; 
         text-align: center !important;
     }
-    .summary-text { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.82rem; color: #1e293b; }
+    .summary-text { font-family: Arial, Helvetica, sans-serif !important; font-weight: 600; font-size: 0.82rem; color: #1e293b; }
     
     /* Responsive adjustment untuk mobile smartphone Android / iOS */
     @media (max-width: 767px) {
-        .block-container { padding-top: 3.4rem !important; }
-        .header-text h2 { font-size: 1.1rem !important; margin-top: 10px !important; }
+        .block-container { padding-top: 0.5rem !important; }
+        .header-text h2 { font-size: 1.15rem !important; margin-top: 10px !important; }
         .summary-text { font-size: 0.72rem !important; }
         [data-testid="stMetricValue"] { font-size: 13px !important; }
     }
@@ -206,7 +209,7 @@ df_eval = df_filtered[df_filtered['TMA_Pasar_Ikan'].notna() & df_filtered['Predi
 # Main Header Title
 st.markdown("""
     <div class="header-text">
-        <h2 style="margin: 0; color: #0F172A; font-family: 'Space Grotesk', sans-serif; font-weight: bold; font-size: 1.55rem;">
+        <h2 style="margin: 0; color: #0F172A; font-weight: bold; font-size: 1.55rem;">
             🌊 MONITORING PASUT HIBRIDA (UTIDE + LSTM) REAL-TIME
         </h2>
     </div>
@@ -234,7 +237,7 @@ if len(df_eval) > 0:
         <div data-testid="stMetric" style="border-left-color: #22c55e !important;">
             <label data-testid="stMetricLabel">📈 REDUKSI EROR (AKURASI)</label>
             <div data-testid="stMetricValue">
-                {peningkatan_curr:.2f} % <span style="color: #22c55e; font-size: 0.72rem; font-weight: bold; font-family: 'Inter';">▲ OPTIMAL</span>
+                {peningkatan_curr:.2f} % <span style="color: #22c55e; font-size: 0.72rem; font-weight: bold;">▲ OPTIMAL</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -243,7 +246,7 @@ if len(df_eval) > 0:
         <div data-testid="stMetric" style="border-left-color: #06B6D4 !important;">
             <label data-testid="stMetricLabel">📉 RMSE HARMONIK UTIDE MURNI</label>
             <div data-testid="stMetricValue">
-                {rmse_utide_curr:.2f} cm <span style="color: #ef4444; font-size: 0.72rem; font-weight: bold; font-family: 'Inter';">+{abs(selisih_nominal):.1f} cm vs Hibrida</span>
+                {rmse_utide_curr:.2f} cm <span style="color: #ef4444; font-size: 0.72rem; font-weight: bold;">+{abs(selisih_nominal):.1f} cm vs Hibrida</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -252,7 +255,7 @@ if len(df_eval) > 0:
         <div data-testid="stMetric" style="border-left-color: #4F46E5 !important;">
             <label data-testid="stMetricLabel">🏆 RMSE KOMPOSIT HIBRIDA (LSTM)</label>
             <div data-testid="stMetricValue">
-                {rmse_hib_curr:.2f} cm <span style="color: #22c55e; font-size: 0.72rem; font-weight: bold; font-family: 'Inter';">-{abs(selisih_nominal):.1f} cm vs UTide</span>
+                {rmse_hib_curr:.2f} cm <span style="color: #22c55e; font-size: 0.72rem; font-weight: bold;">-{abs(selisih_nominal):.1f} cm vs UTide</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -302,26 +305,26 @@ fig.add_hline(y=230, line_dash="dash", line_color="#D97706", line_width=1.5)
 fig.add_annotation(
     xref="paper", yref="y", x=0.005, y=249,
     text="<b>🚨 AWAS ROB (250 cm)</b>", showarrow=False,
-    xanchor="left", yanchor="top", font=dict(color='#DC2626', size=11)
+    xanchor="left", yanchor="top", font=dict(color='#DC2626', size=11, family="Arial")
 )
 
 fig.add_annotation(
     xref="paper", yref="y", x=0.005, y=229,
     text="<b>⚠️ WASPADA ROB (230 cm)</b>", showarrow=False,
-    xanchor="left", yanchor="top", font=dict(color='#D97706', size=11)
+    xanchor="left", yanchor="top", font=dict(color='#D97706', size=11, family="Arial")
 )
 
-# --- KONFIGURASI LAYOUT RESPONSIF PLOTLY ---
+# --- KONFIGURASI LAYOUT RESPONSIF PLOTLY (FONT DIUBAH KE ARIAL) ---
 fig.update_layout(
     height=410, 
     template="plotly_white", 
     margin=dict(l=10, r=10, t=25, b=10), 
     hovermode="x unified",
-    hoverlabel=dict(bgcolor="white", font_size=11),
-    xaxis=dict(tickfont=dict(size=10)),
+    hoverlabel=dict(bgcolor="white", font_size=11, font_family="Arial"),
+    xaxis=dict(tickfont=dict(size=10, family="Arial")),
     yaxis=dict(
-        title=dict(text="Tinggi Air (cm)", font=dict(size=11)), 
-        tickfont=dict(size=10)
+        title=dict(text="Tinggi Air (cm)", font=dict(size=11, family="Arial")), 
+        tickfont=dict(size=10, family="Arial")
     ),
     legend=dict(
         orientation="h", 
@@ -329,9 +332,9 @@ fig.update_layout(
         y=1.02, 
         xanchor="right", 
         x=1, 
-        font=dict(size=11)
+        font=dict(size=11, family="Arial")
     ),
-    font=dict(family="Inter, sans-serif", color="#1E293B")
+    font=dict(family="Arial, Helvetica, sans-serif", color="#1E293B")
 )
 
 # Render Grafik Tanpa Modebar
