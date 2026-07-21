@@ -3,14 +3,22 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
-# 1. KONFIGURASI HALAMAN WEB
-st.set_page_config(page_title="Dashboard Pasut Hibrida", layout="wide")
+# =========================================================================
+# 🌊 1. KONFIGURASI HALAMAN & THEME (PROFESSIONAL SLATE BLUE)
+# =========================================================================
+st.set_page_config(
+    page_title="Dashboard Pasut Hibrida Pasar Ikan", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
 st.title("🌊 Dashboard Operasional Pasut Hibrida (UTide + LSTM)")
-st.markdown("**Stasiun Pemantauan:** Pasar Ikan, Jakarta | **Target Riset:** Koreksi Residu Temporal")
+st.markdown("**Stasiun Pemantauan:** Pasar Ikan, Jakarta | **Fokus Riset:** Koreksi Residu Hidro-Oseanografi Non-Astronomis")
 st.markdown("---")
 
-# 2. LOAD DATA (Menggunakan Cache Biar Ngebut)
+# =========================================================================
+# 📥 2. DATA PIPELINE (LOAD DATABASE MASTER)
+# =========================================================================
 @st.cache_data
 def load_data():
     df = pd.read_csv("HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv", parse_dates=['Datetime'])
@@ -19,95 +27,157 @@ def load_data():
 try:
     df = load_data()
 except Exception as e:
-    st.error(f"❌ Gagal memuat file CSV. Pastikan file 'HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv' ada di folder yang sama. Error: {e}")
+    st.error(f"❌ Gagal memuat file database utama. Pastikan file 'HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv' sudah di-upload ke GitHub. Error: {e}")
     st.stop()
 
-# 3. KOTAK METRIK UTAMA (KPI SCORECARD) - REKAPAN BAB 4 LU
-st.subheader("📊 Rekapan Performa Model (Hasil Validasi)")
-col1, col2, col3 = st.columns(3)
+# =========================================================================
+# ⚙️ 3. PANEL KONTROL SIDEBAR (PRESET STUDI KASUS & CUSTOM FILTER)
+# =========================================================================
+st.sidebar.header("⚡ Kontrol Panel Analisis")
 
-with col1:
-    st.metric(label="Peningkatan Akurasi Maksimal (Juni)", value="26.08 %", delta="LSTM Superior")
-with col2:
-    st.metric(label="Rata-rata Reduksi Eror RMSE (Mei)", value="11.67 %", delta="Koreksi Positif")
-with col3:
-    st.metric(label="Batas Data Aktual Lapangan", value="21 Juli 2026", delta="18:00 WIB")
+PRESETS = {
+    "Studi Kasus 1: Awal Periode (Mei 2026)": {
+        "start": "2026-05-01 00:00:00",
+        "end": "2026-05-07 23:00:00",
+        "desc": "Kondisi transisi awal seasonal pasut hidrologis murni."
+    },
+    "Studi Kasus 2: Tengah Periode (Juni 2026) [BEST PERFORMANCE]": {
+        "start": "2026-06-01 00:00:00",
+        "end": "2026-06-07 23:00:00",
+        "desc": "Anomali residu meteorologis tinggi (Akurasi melonjak +26.08%)."
+    },
+    "Studi Kasus 3: Akhir Periode (Juli 2026)": {
+        "start": "2026-07-14 19:00:00",
+        "end": "2026-07-21 18:00:00",
+        "desc": "Batas data historis aktual sebelum peramalan masa depan."
+    },
+    "🔮 MODE FORECASTING MASA DEPAN (Agustus - Desember 2026)": {
+        "start": "2026-07-21 19:00:00",
+        "end": "2026-12-31 23:00:00",
+        "desc": "Sistem peramalan estafet bergulir tanpa data observasi lapangan."
+    },
+    "🎛️ Custom Rentang Waktu (Manual)": {
+        "start": None,
+        "end": None,
+        "desc": "Bebas menentukan rentang tanggal analisis sendiri."
+    }
+}
+
+pilihan_mode = st.sidebar.selectbox(
+    "Pilih Mode Analisis / Studi Kasus:",
+    list(PRESETS.keys()),
+    index=1  # Otomatis langsung menyorot Studi Kasus 2 (Juni) pas pertama dibuka
+)
+
+st.sidebar.info(f"ℹ️ **Deskripsi:**\n{PRESETS[pilihan_mode]['desc']}")
+
+if pilihan_mode == "🎛️ Custom Rentang Waktu (Manual)":
+    min_date = df['Datetime'].min().date()
+    max_date = df['Datetime'].max().date()
+    start_date = st.sidebar.date_input("Tanggal Mulai", min_date, min_value=min_date, max_value=max_date)
+    end_date = st.sidebar.date_input("Tanggal Selesai", max_date, min_value=min_date, max_value=max_date)
+    df_filtered = df[(df['Datetime'].dt.date >= start_date) & (df['Datetime'].dt.date <= end_date)].copy()
+else:
+    tgl_start = pd.to_datetime(PRESETS[pilihan_mode]['start'])
+    tgl_end = pd.to_datetime(PRESETS[pilihan_mode]['end'])
+    df_filtered = df[(df['Datetime'] >= tgl_start) & (df['Datetime'] <= tgl_end)].copy()
+
+# =========================================================================
+# 📊 4. KOMPUTASI METRIK VALIDASI DINAMIS (KPI SCORECARDS)
+# =========================================================================
+st.subheader("📊 Performa Validasi Real-Time pada Rentang Terpilih")
+
+df_eval = df_filtered[df_filtered['TMA_Pasar_Ikan'].notna() & df_filtered['Prediksi_Hibrida_Final'].notna()]
+
+if len(df_eval) > 0:
+    # Perhitungan statistik galat/eror murni skala centimeter (cm)
+    rmse_utide_curr = np.sqrt(np.mean((df_eval['TMA_Pasar_Ikan'] - df_eval['Prediksi_Harmonik_UTIDE']) ** 2))
+    rmse_hib_curr = np.sqrt(np.mean((df_eval['TMA_Pasar_Ikan'] - df_eval['Prediksi_Hibrida_Final']) ** 2))
+    
+    if rmse_utide_curr > 0:
+        peningkatan_curr = ((rmse_utide_curr - rmse_hib_curr) / rmse_utide_curr) * 100
+    else:
+        peningkatan_curr = 0
+        
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric(
+            label="📈 Reduksi Eror (Peningkatan Akurasi)", 
+            value=f"{peningkatan_curr:.2f} %", 
+            delta="LSTM Efektif Mengoreksi Residu"
+        )
+    with col2:
+        st.metric(
+            label="📉 RMSE Harmonik UTide Murni", 
+            value=f"{rmse_utide_curr:.2f} cm", 
+            delta="Deviasi Teori Astronomis", 
+            delta_color="inverse"
+        )
+    with col3:
+        st.metric(
+            label="🏆 RMSE Komposit Hibrida (LSTM)", 
+            value=f"{rmse_hib_curr:.2f} cm", 
+            delta="Eror Menyusut Mendekati Lapangan", 
+            delta_color="normal"
+        )
+else:
+    st.warning("🔮 **Status:** Menampilkan Area Peramalan Masa Depan. Metrik akurasi tidak dihitung karena data observasi riil lapangan belum terjadi di masa depan.")
 
 st.markdown("---")
 
-# 4. SIDEBAR FILTER WAKTU & MODE TAMPILAN
-st.sidebar.header("⚙️ Kontrol Panel")
-min_date = df['Datetime'].min().date()
-max_date = df['Datetime'].max().date()
-
-start_date, end_date = st.sidebar.date_input(
-    "Pilih Rentang Waktu Analisis",
-    [min_date, max_date],
-    min_value=min_date,
-    max_value=max_date
-)
-
-# Filter Mode: Tampilkan Semua atau Hanya Mode Forecasting Masa Depan
-mode_tampilan = st.sidebar.radio(
-    "Mode Tampilan Grafik:",
-    ["Tampilkan Semua Data", "Hanya Peramalan Masa Depan (Agustus - Desember 2026)"]
-)
-
-# Filter dataframe sesuai tanggal pilihan user
-mask = (df['Datetime'].dt.date >= start_date) & (df['Datetime'].dt.date <= end_date)
-df_filtered = df.loc[mask].copy()
-
-# Logika Mode Peramalan Masa Depan
-if mode_tampilan == "Hanya Peramalan Masa Depan (Agustus - Desember 2026)":
-    df_filtered = df_filtered[df_filtered['Datetime'] > '2026-07-21 18:00:00']
-
-# 5. GRAFIK INTERAKTIF PLOTLY
-st.subheader("📈 Visualisasi Perbandingan Model vs Observasi")
+# =========================================================================
+# 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION)
+# =========================================================================
+st.subheader(f"📈 Grafik Analisis Perbandingan: {pilihan_mode}")
 
 fig = go.Figure()
 
-# Garis Observasi Asli (Hitam) - Hanya muncul jika datanya tidak NaN
+# 1. Garis Hitam: Observasi Riil Lapangan (Hanya muncul jika datanya tersedia)
 if df_filtered['TMA_Pasar_Ikan'].notna().sum() > 0:
     fig.add_trace(go.Scatter(
         x=df_filtered['Datetime'], y=df_filtered['TMA_Pasar_Ikan'],
-        mode='lines', name='Observasi Stasiun (TMA Riil)',
-        line=dict(color='black', width=2)
+        mode='lines', name='Observasi Stasiun (TMA Aktual)',
+        line=dict(color='black', width=2.5)
     ))
 
-# Garis UTide Murni (Biru Putus-putus)
+# 2. Garis Biru Putus-putus: UTide Murni
 fig.add_trace(go.Scatter(
     x=df_filtered['Datetime'], y=df_filtered['Prediksi_Harmonik_UTIDE'],
-    mode='lines', name='UTide Murni (Astronomis)',
-    line=dict(color='blue', width=1.5, dash='dot')
+    mode='lines', name='Prediksi UTide Murni (Astronomis)',
+    line=dict(color='#1f77b4', width=1.8, dash='dot')
 ))
 
-# Garis Prediksi Hibrida (Merah)
+# 3. Garis Merah Tebal: Hibrida LSTM
 fig.add_trace(go.Scatter(
     x=df_filtered['Datetime'], y=df_filtered['Prediksi_Hibrida_Final'],
     mode='lines', name='Prediksi Hibrida (UTide + LSTM)',
-    line=dict(color='red', width=2)
+    line=dict(color='#d62728', width=2.5)
 ))
 
-# Kustomisasi Layout Grafik (Label Y di-set ke cm sesuai data riil)
 fig.update_layout(
     height=550,
     xaxis_title="Tanggal & Waktu",
     yaxis_title="Tinggi Muka Air (cm)",
     hovermode="x unified",
+    hoverlabel=dict(bgcolor="white", font_size=12),
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# 6. TABEL DATA MENTAH & TOMBOL DOWNLOAD
-st.subheader("📋 Data Tabular & Integrasi Dokumen")
-st.dataframe(df_filtered.reset_index(drop=True), use_container_width=True)
+# =========================================================================
+# 📋 6. INTEGRASI DATA TABULAR & FITUR EKSPOR DOKUMEN
+# =========================================================================
+st.subheader("📋 Data Tabular Hasil Pemotongan")
+st.markdown("Berikut adalah potongan baris data numerik yang merepresentasikan kurva grafik di atas:")
 
-# Tombol unduh data langsung dari dashboard
-csv_data = df_filtered.to_csv(index=False).encode('utf-8')
+kolom_tampilan = ['Datetime', 'TMA_Pasar_Ikan', 'Prediksi_Harmonik_UTIDE', 'Prediksi_Hibrida_Final']
+st.dataframe(df_filtered[kolom_tampilan].reset_index(drop=True), use_container_width=True)
+
+csv_data = df_filtered[kolom_tampilan].to_csv(index=False).encode('utf-8')
 st.download_button(
-    label="📥 Download Data yang Difilter (.CSV)",
+    label="📥 Download Data Potongan Ini (.CSV)",
     data=csv_data,
-    file_name="EKSPOR_DATA_PASUT_ELKANA.csv",
+    file_name=f"DATA_TESIS_STUDI_KASUS.csv",
     mime="text/csv",
 )
