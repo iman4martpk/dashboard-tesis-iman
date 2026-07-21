@@ -36,19 +36,19 @@ except Exception as e:
 st.sidebar.header("⚡ Kontrol Panel Analisis")
 
 PRESETS = {
-    "Studi Kasus 1: Awal Periode (Mei 2026)": {
-        "start": "2026-05-01 00:00:00",
-        "end": "2026-05-07 23:00:00",
-        "desc": "Kondisi transisi awal seasonal pasut hidrologis murni."
+    "Studi Kasus 1: Periode Mei": {
+        "start": "2026-05-14 00:00:00",
+        "end": "2026-05-21 00:00:00",
+        "desc": "Evaluasi performa model hibrida pada segmen awal bulan Mei."
     },
-    "Studi Kasus 2: Tengah Periode (Juni 2026) [BEST PERFORMANCE]": {
-        "start": "2026-06-01 00:00:00",
-        "end": "2026-06-07 23:00:00",
-        "desc": "Anomali residu meteorologis tinggi (Akurasi melonjak +26.08%)."
+    "Studi Kasus 2: Periode Juni": {
+        "start": "2026-06-12 00:00:00",
+        "end": "2026-06-19 00:00:00",
+        "desc": "Evaluasi pada fase anomali residu meteorologis tinggi."
     },
-    "Studi Kasus 3: Akhir Periode (Juli 2026)": {
-        "start": "2026-07-14 19:00:00",
-        "end": "2026-07-21 18:00:00",
+    "Studi Kasus 3: Periode Juli": {
+        "start": "2026-07-12 00:00:00",
+        "end": "2026-07-19 00:00:00",
         "desc": "Batas data historis aktual sebelum peramalan masa depan."
     },
     "🔮 MODE FORECASTING MASA DEPAN (Agustus - Desember 2026)": {
@@ -66,10 +66,8 @@ PRESETS = {
 pilihan_mode = st.sidebar.selectbox(
     "Pilih Mode Analisis / Studi Kasus:",
     list(PRESETS.keys()),
-    index=1  # Otomatis langsung menyorot Studi Kasus 2 (Juni) pas pertama dibuka
+    index=1  # Default langsung menyorot ke Juni
 )
-
-st.sidebar.info(f"ℹ️ **Deskripsi:**\n{PRESETS[pilihan_mode]['desc']}")
 
 if pilihan_mode == "🎛️ Custom Rentang Waktu (Manual)":
     min_date = df['Datetime'].min().date()
@@ -100,10 +98,11 @@ if len(df_eval) > 0:
     else:
         peningkatan_curr = 0
         
-    # 3. Hitung selisih nominal eror antara UTide dan Hibrida (untuk memicu arah panah)
     selisih_nominal = rmse_hib_curr - rmse_utide_curr
     
-    # 4. Tampilkan Metrik dengan Indentasi Rata 4 Spasi (Aman dari IndentationError)
+    # Cetak info deskripsi di sidebar secara cerdas (Mengambil variabel hasil hitungan di atas)
+    st.sidebar.info(f"ℹ️ **Deskripsi:**\n{PRESETS[pilihan_mode]['desc']}\n\n📈 **Akurasi Terdeteksi:** +{peningkatan_curr:.2f}%")
+    
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric(
@@ -127,6 +126,7 @@ if len(df_eval) > 0:
             delta_color="inverse"
         )
 else:
+    st.sidebar.info(f"ℹ️ **Deskripsi:**\n{PRESETS[pilihan_mode]['desc']}")
     st.warning("🔮 **Status:** Menampilkan Area Peramalan Masa Depan. Metrik akurasi tidak dihitung karena data observasi riil lapangan belum terjadi (Masa Depan).")
 
 st.markdown("---")
