@@ -162,34 +162,55 @@ else:
     st.warning("🔮 **Status:** Menampilkan Area Peramalan Masa Depan. Metrik akurasi tidak dihitung karena data observasi riil lapangan belum terjadi (Masa Depan).")
 
 # =========================================================================
-# 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION)
+# 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION WITH THRESHOLDS)
 # =========================================================================
 st.markdown(f"<h3 style='margin:5px 0 3px 0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>", unsafe_allow_html=True)
 
 fig = go.Figure()
 
+# 1. Observasi Stasiun (TMA Aktual) - Slate Black
 if df_filtered['TMA_Pasar_Ikan'].notna().sum() > 0:
     fig.add_trace(go.Scatter(
         x=df_filtered['Datetime'], y=df_filtered['TMA_Pasar_Ikan'],
         mode='lines', name='Observasi Stasiun (TMA Aktual)',
-        line=dict(color='black', width=2.5)
+        line=dict(color='#0F172A', width=2.5)
     ))
 
+# 2. Prediksi UTide Murni (Astronomis) - Ocean Blue Dot
 fig.add_trace(go.Scatter(
     x=df_filtered['Datetime'], y=df_filtered['Prediksi_Harmonik_UTIDE'],
     mode='lines', name='Prediksi UTide Murni (Astronomis)',
-    line=dict(color='#1f77b4', width=1.8, dash='dot')
+    line=dict(color='#0284C7', width=1.8, dash='dot')
 ))
 
+# 3. Prediksi Hibrida (UTide + LSTM) - Premium Indigo Bold
 fig.add_trace(go.Scatter(
     x=df_filtered['Datetime'], y=df_filtered['Prediksi_Hibrida_Final'],
     mode='lines', name='Prediksi Hibrida (UTide + LSTM)',
-    line=dict(color='#d62728', width=2.5)
+    line=dict(color='#4F46E5', width=2.8)
+))
+
+# 4. Batas Waspada Rob (230 cm) - Amber Orange Dash
+fig.add_trace(go.Scatter(
+    x=[df_filtered['Datetime'].min(), df_filtered['Datetime'].max()],
+    y=[230, 230],
+    mode='lines',
+    name='⚠️ Waspada Rob (230 cm)',
+    line=dict(color='#F59E0B', width=1.5, dash='dash')
+))
+
+# 5. Batas Awas Rob (250 cm) - Crimson Red Dash
+fig.add_trace(go.Scatter(
+    x=[df_filtered['Datetime'].min(), df_filtered['Datetime'].max()],
+    y=[250, 250],
+    mode='lines',
+    name='🚨 Awas Rob (250 cm)',
+    line=dict(color='#DC2626', width=1.5, dash='dash')
 ))
 
 fig.update_layout(
     height=400,  
-    margin=dict(l=10, r=10, t=45, b=10), # Menjaga ruang aman agar legenda horizontal Plotly tidak menabrak teks di atasnya
+    margin=dict(l=10, r=10, t=65, b=10), # t=65 dilonggarkan agar 2 baris legenda baru tidak menabrak teks subjudul
     xaxis_title="Tanggal & Waktu",
     yaxis_title="Tinggi Muka Air (cm)",
     hovermode="x unified",
