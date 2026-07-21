@@ -129,7 +129,7 @@ if len(df_eval) > 0:
 else:
     st.warning("🔮 **Status:** Menampilkan Area Peramalan Masa Depan. Metrik akurasi tidak dihitung karena data observasi riil lapangan belum terjadi (Masa Depan).")
 
-st.markdown("---"))
+st.markdown("---")
 # =========================================================================
 # 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION)
 # =========================================================================
