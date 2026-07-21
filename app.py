@@ -4,7 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 # =========================================================================
-# 🌊 1. KONFIGURASI HALAMAN & THEME (BALANCED COMPACT LAYOUT)
+# 🌊 1. KONFIGURASI HALAMAN & THEME (PREMIUM CENTERED LAYOUT)
 # =========================================================================
 st.set_page_config(
     page_title="Dashboard Pasut Hibrida Pasar Ikan", 
@@ -12,30 +12,44 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Suntik CSS kustom: Disesuaikan agar pas satu layar tapi tidak saling tabrakan
+# Suntik CSS kustom: Membuang top-bar bawaan Streamlit & merapatkan elemen ke atas
 st.markdown("""
     <style>
-        /* Mengurangi padding halaman utama secara proporsional */
+        /* 1. Menghilangkan ruang kosong/header bawaan Streamlit di paling atas */
+        [data-testid="stHeader"] {
+            display: none !important;
+            height: 0px !important;
+        }
+        /* 2. Mengatur padding halaman utama agar benar-benar mepet ke atas */
         .main .block-container {
-            padding-top: 1rem !important; 
+            padding-top: 0.8rem !important; 
             padding-bottom: 0rem !important;
             padding-left: 2.5rem !important;
             padding-right: 2.5rem !important;
         }
-        /* Mengatur jarak antar elemen vertikal agar tidak terlalu mepet/terpotong */
+        /* 3. Menjaga ritme jarak antar blok komponen */
         .stVerticalBlock {
-            gap: 0.9rem !important;
+            gap: 0.8rem !important;
         }
-        /* Mengoptimalkan ruang box metrik */
+        /* 4. Optimalisasi area KPI Scorecard */
         div[data-testid="stMetric"] {
             padding: 5px 10px !important;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# Judul Utama & Sub-judul (Ukurannya proporsional dan tegas)
-st.markdown("<h1 style='margin:0; padding:0; font-size:32px; font-weight:700; color:#1E293B;'>🌊 Dashboard Operasional Pasut Hibrida (UTide + LSTM)</h1>", unsafe_allow_html=True)
-st.markdown("<p style='margin: 0 0 5px 0; font-size:14px; color:#64748B;'><b>Stasiun Pemantauan:</b> Pasar Ikan, Jakarta | <b>Fokus Riset:</b> Koreksi Residu Hidro-Oseanografi Non-Astronomis</p>", unsafe_allow_html=True)
+# Hero Header: Dibuat Center (Tengah), Bold, dan menggunakan warna Slate yang modern
+st.markdown("""
+    <div style='text-align: center; margin-bottom: 5px;'>
+        <h1 style='margin: 0; padding: 0; font-size: 34px; font-weight: 800; color: #1E293B; letter-spacing: -0.5px;'>
+            🌊 Dashboard Operasional Pasut Hibrida (UTide + LSTM)
+        </h1>
+        <p style='margin: 6px 0 0 0; font-size: 14.5px; color: #64748B;'>
+            <b>Stasiun Pemantauan:</b> Pasar Ikan, Jakarta &nbsp;|&nbsp; 
+            <b>Fokus Riset:</b> Koreksi Residu Hidro-Oseanografi Non-Astronomis
+        </p>
+    </div>
+""", unsafe_allow_html=True)
 
 # =========================================================================
 # 📥 2. DATA PIPELINE (LOAD DATABASE MASTER)
@@ -104,7 +118,7 @@ else:
 # =========================================================================
 # 📊 4. KOMPUTASI METRIK VALIDASI DINAMIS (KPI SCORECARDS)
 # =========================================================================
-st.markdown("<h3 style='margin:5px 0 5px 0; padding:0; font-size:20px; font-weight:600; color:#1E293B;'>📊 Performa Validasi Real-Time pada Rentang Terpilih</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='margin:5px 0 3px 0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📊 Performa Validasi Real-Time pada Rentang Terpilih</h3>", unsafe_allow_html=True)
 
 df_eval = df_filtered[df_filtered['TMA_Pasar_Ikan'].notna() & df_filtered['Prediksi_Hibrida_Final'].notna()]
 
@@ -150,7 +164,7 @@ else:
 # =========================================================================
 # 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION)
 # =========================================================================
-st.markdown(f"<h3 style='margin:5px 0 5px 0; padding:0; font-size:20px; font-weight:600; color:#1E293B;'>📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>", unsafe_allow_html=True)
+st.markdown(f"<h3 style='margin:5px 0 3px 0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>", unsafe_allow_html=True)
 
 fig = go.Figure()
 
@@ -175,7 +189,7 @@ fig.add_trace(go.Scatter(
 
 fig.update_layout(
     height=400,  
-    margin=dict(l=10, r=10, t=50, b=10), # t=50 dinaikkan agar tulisan legenda tidak menabrak sub-judul di atasnya
+    margin=dict(l=10, r=10, t=45, b=10), # Menjaga ruang aman agar legenda horizontal Plotly tidak menabrak teks di atasnya
     xaxis_title="Tanggal & Waktu",
     yaxis_title="Tinggi Muka Air (cm)",
     hovermode="x unified",
@@ -186,10 +200,10 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================================
-# 📋 6. INTEGRASI DATA TABULAR & FITUR EKSPOR DOKUMEN (Tetap aman di bawah)
+# 📋 6. INTEGRASI DATA TABULAR & FITUR EKSPOR DOKUMEN (Di luar frame utama)
 # =========================================================================
 st.markdown("---")
-st.markdown("<h3 style='margin:0; padding:0; font-size:20px; font-weight:600; color:#1E293B;'>📋 Data Tabular Hasil Pemotongan</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='margin:0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📋 Data Tabular Hasil Pemotongan</h3>", unsafe_allow_html=True)
 st.markdown("Berikut adalah potongan baris data numerik yang merepresentasikan kurva grafik di atas:")
 
 kolom_tampilan = ['Datetime', 'TMA_Pasar_Ikan', 'Prediksi_Harmonik_UTIDE', 'Prediksi_Hibrida_Final']
