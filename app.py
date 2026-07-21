@@ -4,7 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 # =========================================================================
-# 🌊 1. KONFIGURASI HALAMAN & THEME (COMPACT LAYOUT)
+# 🌊 1. KONFIGURASI HALAMAN & THEME (COMPACT LAYOUT WITH BOLD TYPOGRAPHY)
 # =========================================================================
 st.set_page_config(
     page_title="Dashboard Pasut Hibrida Pasar Ikan", 
@@ -12,30 +12,30 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Suntik CSS kustom untuk merapatkan layout ke atas dan menghemat ruang vertikal
+# Suntik CSS kustom: Memaksimalkan ruang atas agar judul bisa diperbesar tanpa scroll
 st.markdown("""
     <style>
-        /* Mengurangi padding atas dan bawah pada kontainer utama */
+        /* Memangkas habis ruang kosong di atas judul utama */
         .main .block-container {
-            padding-top: 1.5rem !important;
+            padding-top: 0.5rem !important; 
             padding-bottom: 0rem !important;
             padding-left: 2.5rem !important;
             padding-right: 2.5rem !important;
         }
-        /* Memperkecil jarak default antar elemen Streamlit */
+        /* Mengatur jarak antar elemen vertikal */
         .stVerticalBlock {
-            gap: 0.6rem !important;
+            gap: 0.5rem !important;
         }
-        /* Mengurangi margin vertikal pada komponen metrik */
+        /* Mengoptimalkan ruang box metrik */
         div[data-testid="stMetric"] {
             padding: 5px 10px !important;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# Menggunakan HTML kustom agar Judul & Sub-judul tidak memakan banyak tempat
-st.markdown("<h2 style='margin:0; padding:0; font-size:26px;'>🌊 Dashboard Operasional Pasut Hibrida (UTide + LSTM)</h2>", unsafe_allow_html=True)
-st.markdown("<p style='margin: 0 0 10px 0; font-size:14px; color:#555;'><b>Stasiun Pemantauan:</b> Pasar Ikan, Jakarta | <b>Fokus Riset:</b> Koreksi Residu Hidro-Oseanografi Non-Astronomis</p>", unsafe_allow_html=True)
+# Judul Utama diperbesar ke 35px agar tetap tegas dan proporsional
+st.markdown("<h1 style='margin:0; padding:0; font-size:35px; font-weight:700; color:#1E293B;'>🌊 Dashboard Operasional Pasut Hibrida (UTide + LSTM)</h1>", unsafe_allow_html=True)
+st.markdown("<p style='margin: 2px 0 10px 0; font-size:14px; color:#64748B;'><b>Stasiun Pemantauan:</b> Pasar Ikan, Jakarta | <b>Fokus Riset:</b> Koreksi Residu Hidro-Oseanografi Non-Astronomis</p>", unsafe_allow_html=True)
 
 # =========================================================================
 # 📥 2. DATA PIPELINE (LOAD DATABASE MASTER)
@@ -104,7 +104,8 @@ else:
 # =========================================================================
 # 📊 4. KOMPUTASI METRIK VALIDASI DINAMIS (KPI SCORECARDS)
 # =========================================================================
-st.markdown("<h3 style='margin:5px 0 0 0; padding:0; font-size:18px;'>📊 Performa Validasi Real-Time pada Rentang Terpilih</h3>", unsafe_allow_html=True)
+# Sub-header diperbesar menjadi 22px agar terlihat jelas sebagai pembatas kontainer
+st.markdown("<h3 style='margin:5px 0 2px 0; padding:0; font-size:22px; font-weight:600; color:#1E293B;'>📊 Performa Validasi Real-Time pada Rentang Terpilih</h3>", unsafe_allow_html=True)
 
 df_eval = df_filtered[df_filtered['TMA_Pasar_Ikan'].notna() & df_filtered['Prediksi_Hibrida_Final'].notna()]
 
@@ -150,7 +151,8 @@ else:
 # =========================================================================
 # 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION)
 # =========================================================================
-st.markdown(f"<h3 style='margin:10px 0 0 0; padding:0; font-size:18px;'>📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>", unsafe_allow_html=True)
+# Sub-header grafik diperbesar menjadi 22px menyesuaikan hierarki baru
+st.markdown(f"<h3 style='margin:12px 0 2px 0; padding:0; font-size:22px; font-weight:600; color:#1E293B;'>📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>", unsafe_allow_html=True)
 
 fig = go.Figure()
 
@@ -174,8 +176,8 @@ fig.add_trace(go.Scatter(
 ))
 
 fig.update_layout(
-    height=400,  # Dikurangi dari 550 ke 400 agar muat dalam satu frame layar
-    margin=dict(l=10, r=10, t=30, b=10), # Memperkecil margin internal grafik
+    height=400,  
+    margin=dict(l=10, r=10, t=25, b=10), 
     xaxis_title="Tanggal & Waktu",
     yaxis_title="Tinggi Muka Air (cm)",
     hovermode="x unified",
@@ -186,10 +188,10 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================================
-# 📋 6. INTEGRASI DATA TABULAR & FITUR EKSPOR DOKUMEN (Di bagian bawah)
+# 📋 6. INTEGRASI DATA TABULAR & FITUR EKSPOR DOKUMEN (Tetap di bawah fold)
 # =========================================================================
 st.markdown("---")
-st.markdown("<h3 style='margin:0; padding:0; font-size:18px;'>📋 Data Tabular Hasil Pemotongan</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='margin:0; padding:0; font-size:20px; font-weight:600; color:#1E293B;'>📋 Data Tabular Hasil Pemotongan</h3>", unsafe_allow_html=True)
 st.markdown("Berikut adalah potongan baris data numerik yang merepresentasikan kurva grafik di atas:")
 
 kolom_tampilan = ['Datetime', 'TMA_Pasar_Ikan', 'Prediksi_Harmonik_UTIDE', 'Prediksi_Hibrida_Final']
