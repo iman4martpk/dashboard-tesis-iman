@@ -208,7 +208,6 @@ if len(df_eval) > 0:
     
     m1, m2, m3 = st.columns(3)
     
-    # Menggunakan Kustom HTML Injector Card untuk kestabilan Rendering Android
     m1.markdown(f"""
         <div data-testid="stMetric" style="border-left-color: #22c55e !important;">
             <label data-testid="stMetricLabel">📈 REDUKSI EROR (AKURASI)</label>
@@ -247,6 +246,8 @@ else:
 # =========================================================================
 # 📈 5. VISUALISASI GRAFIK TIMESERIES PLOTLY INTERAKTIF
 # =========================================================================
+st.markdown(f"<h3 style='margin:5px 0 3px 0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>", unsafe_allow_html=True)
+
 fig = go.Figure()
 
 # 1. Data Observasi Lapangan: Solid Slate Grey (Garis utuh tanpa putus)
@@ -279,16 +280,16 @@ fig.add_hline(y=230, line_dash="dash", line_color="#D97706", line_width=1.5)
 fig.add_annotation(
     xref="paper", yref="y", x=0.005, y=249,
     text="<b>🚨 AWAS ROB (250 cm)</b>", showarrow=False,
-    xanchor="left", yanchor="top", font=dict(color='#DC2626', size=10.5)
+    xanchor="left", yanchor="top", font=dict(color='#DC2626', size=11)
 )
 
 fig.add_annotation(
     xref="paper", yref="y", x=0.005, y=229,
     text="<b>⚠️ WASPADA ROB (230 cm)</b>", showarrow=False,
-    xanchor="left", yanchor="top", font=dict(color='#D97706', size=10.5)
+    xanchor="left", yanchor="top", font=dict(color='#D97706', size=11)
 )
 
-# Konfigurasi Layout Responsif Grafik
+# --- KONFIGURASI LAYOUT RESPONSIF YANG SUDAH DIPERBAIKI (ANTI-ERROR SKEMA PLOTLY) ---
 fig.update_layout(
     height=410, 
     template="plotly_white", 
@@ -296,11 +297,21 @@ fig.update_layout(
     hovermode="x unified",
     hoverlabel=dict(bgcolor="white", font_size=11),
     xaxis=dict(tickfont=dict(size=10)),
-    yaxis=dict(title="Tinggi Air (cm)", titlefont=dict(size=11), tickfont=dict(size=10)),
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10.5))
+    yaxis=dict(
+        title=dict(text="Tinggi Air (cm)", font=dict(size=11)), # Perbaikan Struktur Judul Sumbu Y
+        tickfont=dict(size=10)
+    ),
+    legend=dict(
+        orientation="h", 
+        yanchor="bottom", 
+        y=1.02, 
+        xanchor="right", 
+        x=1, 
+        font=dict(size=11) # Dibulatkan ke integer demi keamanan Python 3.14
+    font=dict(family="Inter, sans-serif", color="#1E293B")
 )
 
-# Render Grafik Tanpa Modebar untuk menghemat memori GPU HP Android
+# Render Grafik Tanma Modebar
 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 # =========================================================================
