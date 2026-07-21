@@ -176,11 +176,11 @@ if df_filtered['TMA_Pasar_Ikan'].notna().sum() > 0:
         line=dict(color='#0F172A', width=2.5)
     ))
 
-# 2. Prediksi UTide Murni (Astronomis) - Ocean Blue Dot
+# 2. Prediksi UTide Murni (Astronomis) - Electric Luminous Cyan Dot (Cerah & Kontras)
 fig.add_trace(go.Scatter(
     x=df_filtered['Datetime'], y=df_filtered['Prediksi_Harmonik_UTIDE'],
     mode='lines', name='Prediksi UTide Murni (Astronomis)',
-    line=dict(color='#0284C7', width=1.8, dash='dot')
+    line=dict(color='#00D2FF', width=1.8, dash='dot')
 ))
 
 # 3. Prediksi Hibrida (UTide + LSTM) - Premium Indigo Bold
@@ -190,27 +190,48 @@ fig.add_trace(go.Scatter(
     line=dict(color='#4F46E5', width=2.8)
 ))
 
-# 4. Batas Waspada Rob (230 cm) - Amber Orange Dash
+# 4. Batas Waspada Rob (230 cm) - Tanpa Legend
 fig.add_trace(go.Scatter(
     x=[df_filtered['Datetime'].min(), df_filtered['Datetime'].max()],
     y=[230, 230],
     mode='lines',
-    name='⚠️ Waspada Rob (230 cm)',
+    showlegend=False,
     line=dict(color='#F59E0B', width=1.5, dash='dash')
 ))
 
-# 5. Batas Awas Rob (250 cm) - Crimson Red Dash
+# 5. Batas Awas Rob (250 cm) - Tanpa Legend
 fig.add_trace(go.Scatter(
     x=[df_filtered['Datetime'].min(), df_filtered['Datetime'].max()],
     y=[250, 250],
     mode='lines',
-    name='🚨 Awas Rob (250 cm)',
+    showlegend=False,
     line=dict(color='#DC2626', width=1.5, dash='dash')
 ))
 
+# --- PENEMPELAN TEKS KETERANGAN DI BAWAH GARIS (ANNOTATIONS) ---
+fig.add_annotation(
+    xref="paper", yref="y",
+    x=0.01, y=226,  # 4 cm di bawah garis 230
+    text="<b>⚠️ Waspada Rob (230 cm)</b>",
+    showarrow=False,
+    xanchor="left",
+    yanchor="top",
+    font=dict(color='#F59E0B', size=11)
+)
+
+fig.add_annotation(
+    xref="paper", yref="y",
+    x=0.01, y=246,  # 4 cm di bawah garis 250
+    text="<b>🚨 Awas Rob (250 cm)</b>",
+    showarrow=False,
+    xanchor="left",
+    yanchor="top",
+    font=dict(color='#DC2626', size=11)
+)
+
 fig.update_layout(
     height=400,  
-    margin=dict(l=10, r=10, t=65, b=10), # t=65 dilonggarkan agar 2 baris legenda baru tidak menabrak teks subjudul
+    margin=dict(l=10, r=10, t=40, b=10), # t=40 lebih mepet ke atas karena legenda sudah bersih
     xaxis_title="Tanggal & Waktu",
     yaxis_title="Tinggi Muka Air (cm)",
     hovermode="x unified",
