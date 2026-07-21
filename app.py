@@ -45,34 +45,42 @@ st.markdown("""
         padding-bottom: 0px !important;
     }
 
-    /* ================= FIX UTAMA: TOMBOL PEMICU BUKA SIDEBAR MENGAMBANG ================= */
-    /* Saat sidebar ditutup, paksa tombol pemicu keluar dari aliran DOM dan mengambang di kiri atas */
+    /* ================= FIX UTAMA: RESPONSIVE SIDEBAR TOGGLE CONTROLS ================= */
+    /* Membuat header bawaan transparan & tembus klik agar tidak memblokir elemen di bawahnya */
+    [data-testid="stHeader"] {
+        background-color: transparent !important;
+        pointer-events: none !important;
+        z-index: 99999 !important;
+    }
+
+    /* Paksa tombol BUKA sidebar (saat tertutup) selalu muncul kontras & bisa diklik kembali */
     [data-testid="collapsedControl"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         background-color: #0B3D4C !important;
-        border-radius: 8px !important;
-        position: fixed !important;
-        top: 12px !important;
-        left: 12px !important;
-        z-index: 999999 !important;
-        box-shadow: 0 2px 12px rgba(11, 61, 76, 0.4) !important;
+        border-radius: 6px !important;
         padding: 5px !important;
+        pointer-events: auto !important; /* Mengembalikan fungsi klik */
+        box-shadow: 0 2px 8px rgba(11, 61, 76, 0.3) !important;
     }
-    [data-testid="collapsedControl"] svg {
+    
+    /* Paksa tombol TUTUP sidebar (saat terbuka) tetap konsisten bergaya solid */
+    [data-testid="stSidebarCollapseButton"] {
+        background-color: #0B3D4C !important;
+        border-radius: 6px !important;
+    }
+
+    /* Mengubah warna icon panah / hamburger menu menjadi putih bersih */
+    [data-testid="collapsedControl"] svg,
+    [data-testid="stSidebarCollapseButton"] svg {
         fill: #F8FAFC !important;
         color: #F8FAFC !important;
     }
 
-    /* Sembunyikan toolbar bawaan Streamlit (menu titik tiga, Deploy dsb) */
+    /* Sembunyikan hanya toolbar aksesoris bawaan (menu titik tiga, deploy button, dll) */
     [data-testid="stToolbar"] {
         visibility: hidden !important;
-    }
-    
-    /* Buat background header bawaan transparan agar tidak menumpuk */
-    [data-testid="stHeader"] {
-        background: transparent !important;
     }
 
     /* GAYA METRIK KUSTOM (ULTRA SLIM READING PANEL) */
@@ -120,7 +128,7 @@ st.markdown("""
     }
     .summary-text { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.82rem; color: #1e293b; }
     
-    /* Responsive adjustment untuk mobile smartphone */
+    /* Responsive adjustment untuk mobile smartphone Android / iOS */
     @media (max-width: 767px) {
         .block-container { padding-top: 3.2rem !important; }
         .header-text h2 { font-size: 1.1rem !important; }
@@ -128,7 +136,6 @@ st.markdown("""
         [data-testid="stMetricValue"] { font-size: 13px !important; }
     }
     @media (min-width: 768px) {
-        [data-testid="stHeader"] { height: 0rem !important; }
         .main .block-container { padding-top: 1.2rem !important; }
     }
     </style>
@@ -307,7 +314,7 @@ fig.add_annotation(
     xanchor="left", yanchor="top", font=dict(color='#D97706', size=11)
 )
 
-# --- KONFIGURASI LAYOUT RESPONSIF YANG SUDAH DIPERBAIKI ---
+# --- KONFIGURASI LAYOUT RESPONSIF PLOTLY ---
 fig.update_layout(
     height=410, 
     template="plotly_white", 
