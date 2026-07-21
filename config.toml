@@ -1,0 +1,4 @@
+[client]
+# "viewer" menyembunyikan opsi developer (Deploy, Clear cache, Rerun on save)
+# TAPI tetap menampilkan menu Settings (termasuk ganti tema) untuk semua pengunjung.
+toolbarMode = "viewer"
