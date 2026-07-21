@@ -289,7 +289,7 @@ fig.add_annotation(
     xanchor="left", yanchor="top", font=dict(color='#D97706', size=11)
 )
 
-# --- KONFIGURASI LAYOUT RESPONSIF YANG SUDAH DIPERBAIKI (ANTI-ERROR SKEMA PLOTLY) ---
+# --- KONFIGURASI LAYOUT RESPONSIF YANG SUDAH DIPERBAIKI (KURUNG SUDAH DITUTUP SEMPURNA) ---
 fig.update_layout(
     height=410, 
     template="plotly_white", 
@@ -298,7 +298,7 @@ fig.update_layout(
     hoverlabel=dict(bgcolor="white", font_size=11),
     xaxis=dict(tickfont=dict(size=10)),
     yaxis=dict(
-        title=dict(text="Tinggi Air (cm)", font=dict(size=11)), # Perbaikan Struktur Judul Sumbu Y
+        title=dict(text="Tinggi Air (cm)", font=dict(size=11)), 
         tickfont=dict(size=10)
     ),
     legend=dict(
@@ -307,11 +307,12 @@ fig.update_layout(
         y=1.02, 
         xanchor="right", 
         x=1, 
-        font=dict(size=11) # Dibulatkan ke integer demi keamanan Python 3.14
+        font=dict(size=11)
+    ),
     font=dict(family="Inter, sans-serif", color="#1E293B")
 )
 
-# Render Grafik Tanma Modebar
+# Render Grafik Tanpa Modebar
 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 # =========================================================================
