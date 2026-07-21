@@ -4,7 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 # =========================================================================
-# 🌊 1. KONFIGURASI HALAMAN & THEME (RESPONSIVE MOBILE-FRIENDLY LAYOUT)
+# 🌊 1. KONFIGURASI HALAMAN & THEME (INSTRUMEN PASUT — RESPONSIVE)
 # =========================================================================
 st.set_page_config(
     page_title="Dashboard Pasut Hibrida Pasar Ikan", 
@@ -12,62 +12,146 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Suntik CSS kustom responsif: Menjaga kerapatan desktop & menyelamatkan tombol sidebar di HP
+# Suntik CSS kustom: Font premium, layout responsif murni, & gauge readout metrics
 st.markdown("""
     <style>
-        /* 💻 OPTIMASI UNTUK LAYAR DESKTOP / LAPTOP */
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+        :root {
+            --navy: #0B3D4C;
+            --navy-2: #124E61;
+            --teal: #0E7490;
+            --foam: #F8FAFC;
+            --ink: #1E293B;
+            --slate: #64748B;
+            --amber: #D97706;
+            --alert-red: #DC2626;
+        }
+
+        html, body, [class*="css"] {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+        }
+
+        /* Sembunyikan toolbar bawaan Streamlit (menu titik tiga, Deploy dsb) */
+        [data-testid="stToolbar"] {
+            visibility: hidden !important;
+        }
+
+        /* Tombol buka/tutup sidebar dipaksa SELALU terlihat kontras di semua perangkat */
+        [data-testid="collapsedControl"],
+        [data-testid="stSidebarCollapseButton"] {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            background-color: var(--navy) !important;
+            border-radius: 8px !important;
+            box-shadow: 0 2px 10px rgba(11, 61, 76, 0.35) !important;
+            padding: 4px !important;
+            z-index: 999999 !important;
+        }
+        [data-testid="collapsedControl"] svg,
+        [data-testid="stSidebarCollapseButton"] svg {
+            fill: var(--foam) !important;
+            color: var(--foam) !important;
+        }
+
+        /* ================= HERO / PANEL INSTRUMEN ================= */
+        .hero-band {
+            background-image: 
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0,50 C300,100 900,0 1200,60 L1200,120 L0,120 Z' fill='%23ffffff' fill-opacity='0.05'/%3E%3C/svg%3E"), 
+                linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+            background-repeat: no-repeat, no-repeat;
+            background-size: cover, cover;
+            background-position: bottom, center;
+            border-radius: 14px;
+            padding: 22px 28px 26px 28px;
+            margin-bottom: 14px;
+            box-shadow: 0 6px 24px rgba(11, 61, 76, 0.18);
+            text-align: center;
+        }
+        .hero-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            color: var(--foam);
+            letter-spacing: -0.3px;
+            margin: 0;
+        }
+        .hero-subtitle {
+            font-family: 'Inter', sans-serif;
+            font-weight: 400;
+            color: #CBD5E1;
+            margin: 6px 0 0 0;
+        }
+
+        /* 💻 KONDISI LAYAR DESKTOP / LAPTOP */
         @media (min-width: 768px) {
             [data-testid="stHeader"] {
-                display: none !important;
+                background: transparent !important;
+                height: 0rem !important;
             }
             .main .block-container {
-                padding-top: 0.8rem !important; 
+                padding-top: 1.2rem !important; 
                 padding-bottom: 0rem !important;
                 padding-left: 2.5rem !important;
                 padding-right: 2.5rem !important;
             }
+            .hero-title { font-size: 32px; }
+            .hero-subtitle { font-size: 14.5px; }
         }
-        
-        /* 📱 OPTIMASI KHUSUS LAYAR HP (ANDROID / IOS) */
+
+        /* 📱 KONDISI LAYAR HP (ANDROID / IOS) */
         @media (max-width: 767px) {
-            /* Jangan sembunyikan header di HP agar tombol pemicu sidebar (☰) tetap bisa diakses */
             [data-testid="stHeader"] {
-                background-color: transparent !important;
-                color: #1E293B !important;
+                background: transparent !important;
+                height: 3.5rem !important; /* Memberikan tinggi logis agar tombol sidebar mobile aman */
             }
             .main .block-container {
-                padding-top: 3.5rem !important; /* Memberi ruang di atas agar tidak tertutup tombol sidebar mobile */
+                padding-top: 1rem !important; 
                 padding-left: 1rem !important;
                 padding-right: 1rem !important;
             }
-            /* Mengecilkan font judul secara dinamis di HP agar pas satu layar */
-            .responsive-title {
-                font-size: 22px !important;
-                line-height: 1.3 !important;
-            }
-            .responsive-subtitle {
-                font-size: 12px !important;
-                margin-top: 4px !important;
-            }
+            .hero-title { font-size: 21px; line-height: 1.35; }
+            .hero-subtitle { font-size: 12px; margin-top: 5px; }
+            .hero-band { padding: 16px 16px 20px 16px; border-radius: 12px; }
+        }
+
+        .stVerticalBlock { gap: 0.8rem !important; }
+
+        /* ================= KARTU METRIK BERGAYA "GAUGE READOUT" ================= */
+        div[data-testid="stMetric"] {
+            background-color: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-left: 4px solid var(--teal);
+            border-radius: 10px;
+            padding: 8px 14px !important;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+        }
+        div[data-testid="stMetricValue"] {
+            font-family: 'IBM Plex Mono', monospace !important;
+            color: var(--ink);
+        }
+        div[data-testid="stMetricLabel"] {
+            font-family: 'Inter', sans-serif;
+            color: var(--slate);
         }
         
-        /* Pengaturan global antar blok komponen */
-        .stVerticalBlock {
-            gap: 0.8rem !important;
-        }
-        div[data-testid="stMetric"] {
-            padding: 5px 10px !important;
-        }
+        /* Pewarnaan aksen border kiri kartu KPI agar lebih variatif */
+        div[data-testid="column"]:nth-of-type(1) div[data-testid="stMetric"],
+        div[data-testid="stHorizontalBlock"] > div:nth-child(1) div[data-testid="stMetric"] { border-left-color: var(--navy); }
+        div[data-testid="column"]:nth-of-type(2) div[data-testid="stMetric"],
+        div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[data-testid="stMetric"] { border-left-color: var(--teal); }
+        div[data-testid="column"]:nth-of-type(3) div[data-testid="stMetric"],
+        div[data-testid="stHorizontalBlock"] > div:nth-child(3) div[data-testid="stMetric"] { border-left-color: var(--amber); }
     </style>
 """, unsafe_allow_html=True)
 
-# Hero Header dengan Class Responsif CSS
+# Hero Header 
 st.markdown("""
-    <div style='text-align: center; margin-bottom: 5px;'>
-        <h1 class='responsive-title' style='margin: 0; padding: 0; font-size: 34px; font-weight: 800; color: #1E293B; letter-spacing: -0.5px;'>
-            🌊 Dashboard Operasional Pasut Hibrida (UTide + LSTM)
-        </h1>
-        <p class='responsive-subtitle' style='margin: 6px 0 0 0; font-size: 14.5px; color: #64748B;'>
+    <div class="hero-band">
+        <h1 class="hero-title">🌊 Dashboard Operasional Pasut Hibrida (UTide + LSTM)</h1>
+        <p class="hero-subtitle">
             <b>Stasiun Pemantauan:</b> Pasar Ikan, Jakarta &nbsp;|&nbsp; 
             <b>Fokus Riset:</b> Koreksi Residu Hidro-Oseanografi Non-Astronomis
         </p>
@@ -148,16 +232,16 @@ df_eval = df_filtered[df_filtered['TMA_Pasar_Ikan'].notna() & df_filtered['Predi
 if len(df_eval) > 0:
     rmse_utide_curr = np.sqrt(np.mean((df_eval['TMA_Pasar_Ikan'] - df_eval['Prediksi_Harmonik_UTIDE']) ** 2))
     rmse_hib_curr = np.sqrt(np.mean((df_eval['TMA_Pasar_Ikan'] - df_eval['Prediksi_Hibrida_Final']) ** 2))
-    
+
     if rmse_utide_curr > 0:
         peningkatan_curr = ((rmse_utide_curr - rmse_hib_curr) / rmse_utide_curr) * 100
     else:
         peningkatan_curr = 0
-        
+
     selisih_nominal = rmse_hib_curr - rmse_utide_curr
-    
+
     st.sidebar.info(f"ℹ️ **Deskripsi:**\n{PRESETS[pilihan_mode]['desc']}\n\n📈 **Akurasi Terdeteksi:** +{peningkatan_curr:.2f}%")
-    
+
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric(
@@ -185,7 +269,7 @@ else:
     st.warning("🔮 **Status:** Menampilkan Area Peramalan Masa Depan. Metrik akurasi tidak dihitung karena data observasi riil lapangan belum terjadi (Masa Depan).")
 
 # =========================================================================
-# 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION - NEW STYLING)
+# 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION — TEMA INSTRUMEN)
 # =========================================================================
 st.markdown(f"<h3 style='margin:5px 0 3px 0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>", unsafe_allow_html=True)
 
@@ -199,11 +283,11 @@ if df_filtered['TMA_Pasar_Ikan'].notna().sum() > 0:
         line=dict(color='#64748B', width=2.5)  # Solid Slate Gray
     ))
 
-# 2. Prediksi UTide Murni (Astronomis) - Putus-Putus Rapat (Dot) Cyan Cerah
+# 2. Prediksi UTide Murni (Astronomis) - Putus-Putus Rapat (Dot) Cyan Menyala (Cerah & Kontras!)
 fig.add_trace(go.Scatter(
     x=df_filtered['Datetime'], y=df_filtered['Prediksi_Harmonik_UTIDE'],
     mode='lines', name='Prediksi UTide Murni (Astronomis)',
-    line=dict(color='#06B6D4', width=2.0, dash='dot')  # Dotted Cyan
+    line=dict(color='#06B6D4', width=2.0, dash='dot')  # Vibrant Cyan
 ))
 
 # 3. Prediksi Hibrida (UTide + LSTM) - Putus-Putus Regang (Dash) Indigo Premium Tebal
@@ -219,7 +303,7 @@ fig.add_trace(go.Scatter(
     y=[230, 230],
     mode='lines',
     showlegend=False,
-    line=dict(color='#F59E0B', width=1.5, dash='dash')
+    line=dict(color='#D97706', width=1.5, dash='dash')
 ))
 
 # 5. Batas Awas Rob (250 cm)
@@ -231,20 +315,20 @@ fig.add_trace(go.Scatter(
     line=dict(color='#DC2626', width=1.5, dash='dash')
 ))
 
-# --- ANNOTATIONS: Didekatkan persis 1 cm di bawah masing-masing garis threshold ---
+# --- ANNOTATIONS: Super presisi 1 cm pas di bawah garis batas agar tidak rancu ---
 fig.add_annotation(
     xref="paper", yref="y",
-    x=0.005, y=229,  # Mepet di bawah garis 230 cm
+    x=0.005, y=229, 
     text="<b>⚠️ Waspada Rob (230 cm)</b>",
     showarrow=False,
     xanchor="left",
     yanchor="top",
-    font=dict(color='#F59E0B', size=11)
+    font=dict(color='#D97706', size=11)
 )
 
 fig.add_annotation(
     xref="paper", yref="y",
-    x=0.005, y=249,  # Mepet di bawah garis 250 cm
+    x=0.005, y=249, 
     text="<b>🚨 Awas Rob (250 cm)</b>",
     showarrow=False,
     xanchor="left",
@@ -259,7 +343,8 @@ fig.update_layout(
     yaxis_title="Tinggi Muka Air (cm)",
     hovermode="x unified",
     hoverlabel=dict(bgcolor="white", font_size=12),
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    font=dict(family="Inter, sans-serif", color="#1E293B")
 )
 
 st.plotly_chart(fig, use_container_width=True)
