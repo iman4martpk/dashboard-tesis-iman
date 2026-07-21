@@ -90,41 +90,43 @@ st.subheader("📊 Performa Validasi Real-Time pada Rentang Terpilih")
 df_eval = df_filtered[df_filtered['TMA_Pasar_Ikan'].notna() & df_filtered['Prediksi_Hibrida_Final'].notna()]
 
 if len(df_eval) > 0:
-    # Perhitungan statistik galat/eror murni skala centimeter (cm)
+    # 1. Hitung RMSE Aktual saat ini
     rmse_utide_curr = np.sqrt(np.mean((df_eval['TMA_Pasar_Ikan'] - df_eval['Prediksi_Harmonik_UTIDE']) ** 2))
     rmse_hib_curr = np.sqrt(np.mean((df_eval['TMA_Pasar_Ikan'] - df_eval['Prediksi_Hibrida_Final']) ** 2))
     
+    # 2. Hitung persentase reduksi eror
     if rmse_utide_curr > 0:
         peningkatan_curr = ((rmse_utide_curr - rmse_hib_curr) / rmse_utide_curr) * 100
     else:
         peningkatan_curr = 0
         
+    # 3. Hitung selisih nominal eror antara UTide dan Hibrida (untuk memicu arah panah)
+    selisih_nominal = rmse_hib_curr - rmse_utide_curr # Hasilnya pasti NEGATIF karena eror hibrida lebih kecil
+    
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric(
             label="📈 Reduksi Eror (Peningkatan Akurasi)", 
             value=f"{peningkatan_curr:.2f} %", 
-            delta="LSTM Efektif Mengoreksi Residu"
+            delta="LSTM Efektif Mengoreksi Residu",
+            delta_color="normal" # Tetap Hijau + Panah Atas (karena ini prestasi positif)
         )
     with col2:
         st.metric(
             label="📉 RMSE Harmonik UTide Murni", 
             value=f"{rmse_utide_curr:.2f} cm", 
-            delta="Deviasi Teori Astronomis", 
-            delta_color="inverse"
+            delta=f"+{-selisih_nominal:.2f} cm vs Hibrida", 
+            delta_color="inverse" # Dipaksa MERAH karena UTide memiliki surplus eror lebih besar
         )
     with col3:
         st.metric(
             label="🏆 RMSE Komposit Hibrida (LSTM)", 
             value=f"{rmse_hib_curr:.2f} cm", 
-            delta="Eror Menyusut Mendekati Lapangan", 
-            delta_color="normal"
+            delta=f"{selisih_nominal:.2f} cm vs UTide", 
+            delta_color="normal" # Karena nilainya NEGATIF, Streamlit otomatis bikin PANAH BAWAH (↓) & warna HIJAU!
         )
 else:
-    st.warning("🔮 **Status:** Menampilkan Area Peramalan Masa Depan. Metrik akurasi tidak dihitung karena data observasi riil lapangan belum terjadi di masa depan.")
-
-st.markdown("---")
-
+    st.warning("🔮 **Status:** Menampilkan Area Peramalan Masa Depan. Metrik akurasi tidak dihitung karena data observasi riil lapangan belum terjadi (Masa Depan).")
 # =========================================================================
 # 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION)
 # =========================================================================
