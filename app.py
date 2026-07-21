@@ -22,7 +22,7 @@ st.markdown("""
         max-width: 260px !important;
     }
 
-    /* Merapatkan kontainer utama ke batas paling atas */
+    /* Merapatkan kontainer utama ke batas paling atas layar */
     .block-container { 
         padding-top: 0.5rem !important; 
         padding-bottom: 0rem !important; 
@@ -36,58 +36,57 @@ st.markdown("""
 
     .stApp { background-color: #ffffff; }
     
-    /* Merapatkan Header Utama ke paling atas layar */
+    /* Menyelaraskan teks judul utama di tengah */
     .header-text { 
         text-align: center; 
         width: 100%; 
-        margin-top: -15px; 
+        margin-top: 5px; 
         margin-bottom: 0px !important;
         padding-bottom: 0px !important;
     }
 
-    /* ================= 🔥 FIX ABSOLUT: TOMBOL SIDEBAR FLOATING LAYER 🔥 ================= */
-    /* Membuat header bawaan transparan & tembus klik agar tidak memblokir tombol */
+    /* ================= 🔥 FIX ABSOLUT: FLOATING TRANSPARENT HEADER 🔥 ================= */
+    /* Membuat header melayang di atas konten tanpa mendorong dashboard ke bawah */
     [data-testid="stHeader"] {
         background-color: transparent !important;
-        pointer-events: none !important;
-        z-index: 99999 !important;
+        background: transparent !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        height: 3.5rem !important;
+        z-index: 99995 !important;
     }
 
-    /* Cabut paksa tombol BUKA sidebar (hamburger ☰) agar melayang konstan di pojok kiri atas */
-    div[data-testid="collapsedControl"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        position: fixed !important; /* Melayang bebas keluar dari tumpukan konten */
-        top: 12px !important;
-        left: 12px !important;
-        background-color: #0B3D4C !important; /* Warna Navy Khas Pasut Priok */
-        border-radius: 8px !important;
-        padding: 6px !important;
-        z-index: 9999999 !important; /* Kasta layer tertinggi agar tidak tertimbun */
-        pointer-events: auto !important; /* Wajib aktif agar bisa diklik */
-        box-shadow: 0 4px 15px rgba(11, 61, 76, 0.4) !important;
-    }
-    
-    /* Setel tombol TUTUP sidebar (saat terbuka) agar ikut solid & serasi */
-    button[data-testid="stSidebarCollapseButton"] {
+    /* Mengubah tombol BUKA sidebar (hamburger ☰) menjadi widget navy solid yang stand-out */
+    [data-testid="collapsedControl"] {
         background-color: #0B3D4C !important;
         border-radius: 8px !important;
         padding: 6px !important;
-        z-index: 9999999 !important;
-        pointer-events: auto !important;
+        margin-top: 8px !important;
+        margin-left: 8px !important;
+        box-shadow: 0 4px 12px rgba(11, 61, 76, 0.3) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    /* Menyelaraskan tombol TUTUP sidebar agar serupa */
+    [data-testid="stSidebarCollapseButton"] {
+        background-color: #0B3D4C !important;
+        border-radius: 8px !important;
     }
 
-    /* Paksa semua warna icon panah / hamburger menu menjadi putih bersih berkilau */
-    div[data-testid="collapsedControl"] svg,
-    button[data-testid="stSidebarCollapseButton"] svg {
+    /* Memastikan semua icon panah & hamburger berwarna putih kontras */
+    [data-testid="collapsedControl"] svg,
+    [data-testid="stSidebarCollapseButton"] svg {
         fill: #F8FAFC !important;
         color: #F8FAFC !important;
     }
 
-    /* Sembunyikan toolbar bawaan Streamlit (menu titik tiga, deploy button, dll) */
+    /* Sembunyikan toolbar bawaan Streamlit yang tidak diperlukan (titik tiga, dll) */
     [data-testid="stToolbar"] {
-        visibility: hidden !important;
+        display: none !important;
     }
 
     /* GAYA METRIK KUSTOM (ULTRA SLIM READING PANEL) */
@@ -128,7 +127,7 @@ st.markdown("""
         background-color: #f1f5f9 !important; 
         padding: 6px 12px !important; 
         border-radius: 8px !important; 
-        margin-top: -5px !important;
+        margin-top: 4px !important;
         margin-bottom: 8px !important; 
         border-left: 5px solid #0B3D4C !important; 
         text-align: center !important;
@@ -137,13 +136,10 @@ st.markdown("""
     
     /* Responsive adjustment untuk mobile smartphone Android / iOS */
     @media (max-width: 767px) {
-        .block-container { padding-top: 3.2rem !important; }
+        .block-container { padding-top: 3.5rem !important; }
         .header-text h2 { font-size: 1.1rem !important; }
         .summary-text { font-size: 0.72rem !important; }
         [data-testid="stMetricValue"] { font-size: 13px !important; }
-    }
-    @media (min-width: 768px) {
-        .main .block-container { padding-top: 1.2rem !important; }
     }
     </style>
 """, unsafe_allow_html=True)
