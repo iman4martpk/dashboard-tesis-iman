@@ -7,7 +7,7 @@ from datetime import datetime
 # =========================================================================
 # 🌊 1. KONFIGURASI HALAMAN & CSS INSTRUMEN (ULTRA-SLIM RESPONSIVE)
 # =========================================================================
-st.set_page_config(page_title="Dashboard Pasut Hibrida Pasar Ikan", layout="wide", page_icon="🌊")
+st.set_page_config(page_title="Dashboard Pasut Hibrida Pasar Ikan", layout="wide", page_icon="waves")
 
 st.markdown("""
     <style>
@@ -22,7 +22,7 @@ st.markdown("""
         max-width: 260px !important;
     }
 
-    /* Merapatkan kontainer utama ke batas paling atas layar */
+    /* Merapatkan kontainer utama ke batas paling atas layar secara aman */
     .block-container { 
         padding-top: 0.5rem !important; 
         padding-bottom: 0rem !important; 
@@ -45,46 +45,36 @@ st.markdown("""
         padding-bottom: 0px !important;
     }
 
-    /* ================= 🔥 FIX ABSOLUT: FLOATING TRANSPARENT HEADER 🔥 ================= */
-    /* Membuat header melayang di atas konten tanpa mendorong dashboard ke bawah */
+    /* ================= 🔥 FIX ABSOLUT: NORMAL HEIGHT TRANSPARENT HEADER 🔥 ================= */
+    /* Mengembalikan tinggi normal header agar tombol tidak terpotong sistem overflow browser */
     [data-testid="stHeader"] {
         background-color: transparent !important;
         background: transparent !important;
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        height: 3.5rem !important;
         z-index: 99995 !important;
     }
 
     /* Mengubah tombol BUKA sidebar (hamburger ☰) menjadi widget navy solid yang stand-out */
-    [data-testid="collapsedControl"] {
-        background-color: #0B3D4C !important;
+    div[data-testid="collapsedControl"] {
+        background-color: #0B3D4C !important; /* Navy instrumen pasut */
         border-radius: 8px !important;
         padding: 6px !important;
-        margin-top: 8px !important;
-        margin-left: 8px !important;
         box-shadow: 0 4px 12px rgba(11, 61, 76, 0.3) !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
     }
     
     /* Menyelaraskan tombol TUTUP sidebar agar serupa */
-    [data-testid="stSidebarCollapseButton"] {
+    button[data-testid="stSidebarCollapseButton"] {
         background-color: #0B3D4C !important;
         border-radius: 8px !important;
     }
 
     /* Memastikan semua icon panah & hamburger berwarna putih kontras */
-    [data-testid="collapsedControl"] svg,
-    [data-testid="stSidebarCollapseButton"] svg {
+    div[data-testid="collapsedControl"] svg,
+    button[data-testid="stSidebarCollapseButton"] svg {
         fill: #F8FAFC !important;
         color: #F8FAFC !important;
     }
 
-    /* Sembunyikan toolbar bawaan Streamlit yang tidak diperlukan (titik tiga, dll) */
+    /* Sembunyikan hanya aksesori bawaan yang mengganggu (menu titik tiga, dll) */
     [data-testid="stToolbar"] {
         display: none !important;
     }
@@ -136,8 +126,8 @@ st.markdown("""
     
     /* Responsive adjustment untuk mobile smartphone Android / iOS */
     @media (max-width: 767px) {
-        .block-container { padding-top: 3.5rem !important; }
-        .header-text h2 { font-size: 1.1rem !important; }
+        .block-container { padding-top: 0.5rem !important; }
+        .header-text h2 { font-size: 1.1rem !important; margin-top: 10px !important; }
         .summary-text { font-size: 0.72rem !important; }
         [data-testid="stMetricValue"] { font-size: 13px !important; }
     }
