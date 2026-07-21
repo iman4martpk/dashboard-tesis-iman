@@ -4,7 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 # =========================================================================
-# 🌊 1. KONFIGURASI HALAMAN & THEME (PREMIUM CENTERED LAYOUT)
+# 🌊 1. KONFIGURASI HALAMAN & THEME (RESPONSIVE MOBILE-FRIENDLY LAYOUT)
 # =========================================================================
 st.set_page_config(
     page_title="Dashboard Pasut Hibrida Pasar Ikan", 
@@ -12,39 +12,62 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Suntik CSS kustom: Membuang top-bar bawaan Streamlit & merapatkan elemen ke atas
+# Suntik CSS kustom responsif: Menjaga kerapatan desktop & menyelamatkan tombol sidebar di HP
 st.markdown("""
     <style>
-        /* 1. Menghilangkan ruang kosong/header bawaan Streamlit di paling atas */
-        [data-testid="stHeader"] {
-            display: none !important;
-            height: 0px !important;
+        /* 💻 OPTIMASI UNTUK LAYAR DESKTOP / LAPTOP */
+        @media (min-width: 768px) {
+            [data-testid="stHeader"] {
+                display: none !important;
+            }
+            .main .block-container {
+                padding-top: 0.8rem !important; 
+                padding-bottom: 0rem !important;
+                padding-left: 2.5rem !important;
+                padding-right: 2.5rem !important;
+            }
         }
-        /* 2. Mengatur padding halaman utama agar benar-benar mepet ke atas */
-        .main .block-container {
-            padding-top: 0.8rem !important; 
-            padding-bottom: 0rem !important;
-            padding-left: 2.5rem !important;
-            padding-right: 2.5rem !important;
+        
+        /* 📱 OPTIMASI KHUSUS LAYAR HP (ANDROID / IOS) */
+        @media (max-width: 767px) {
+            /* Jangan sembunyikan header di HP agar tombol pemicu sidebar (☰) tetap bisa diakses */
+            [data-testid="stHeader"] {
+                background-color: transparent !important;
+                color: #1E293B !important;
+            }
+            .main .block-container {
+                padding-top: 3.5rem !important; /* Memberi ruang di atas agar tidak tertutup tombol sidebar mobile */
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+            }
+            /* Mengecilkan font judul secara dinamis di HP agar pas satu layar */
+            .responsive-title {
+                font-size: 22px !important;
+                line-height: 1.3 !important;
+            }
+            .responsive-subtitle {
+                font-size: 12px !important;
+                margin-top: 4px !important;
+            }
         }
-        /* 3. Menjaga ritme jarak antar blok komponen */
+        
+        /* Pengaturan global antar blok komponen */
         .stVerticalBlock {
             gap: 0.8rem !important;
         }
-        /* 4. Optimalisasi area KPI Scorecard */
         div[data-testid="stMetric"] {
             padding: 5px 10px !important;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# Hero Header: Dibuat Center (Tengah), Bold, dan menggunakan warna Slate yang modern
+# Hero Header dengan Class Responsif CSS
 st.markdown("""
     <div style='text-align: center; margin-bottom: 5px;'>
-        <h1 style='margin: 0; padding: 0; font-size: 34px; font-weight: 800; color: #1E293B; letter-spacing: -0.5px;'>
+        <h1 class='responsive-title' style='margin: 0; padding: 0; font-size: 34px; font-weight: 800; color: #1E293B; letter-spacing: -0.5px;'>
             🌊 Dashboard Operasional Pasut Hibrida (UTide + LSTM)
         </h1>
-        <p style='margin: 6px 0 0 0; font-size: 14.5px; color: #64748B;'>
+        <p class='responsive-subtitle' style='margin: 6px 0 0 0; font-size: 14.5px; color: #64748B;'>
             <b>Stasiun Pemantauan:</b> Pasar Ikan, Jakarta &nbsp;|&nbsp; 
             <b>Fokus Riset:</b> Koreksi Residu Hidro-Oseanografi Non-Astronomis
         </p>
@@ -162,35 +185,35 @@ else:
     st.warning("🔮 **Status:** Menampilkan Area Peramalan Masa Depan. Metrik akurasi tidak dihitung karena data observasi riil lapangan belum terjadi (Masa Depan).")
 
 # =========================================================================
-# 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION WITH THRESHOLDS)
+# 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION - NEW STYLING)
 # =========================================================================
 st.markdown(f"<h3 style='margin:5px 0 3px 0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>", unsafe_allow_html=True)
 
 fig = go.Figure()
 
-# 1. Observasi Stasiun (TMA Aktual) - Slate Black
+# 1. Observasi Stasiun (TMA Aktual) - Solid Abu-Abu/Slate
 if df_filtered['TMA_Pasar_Ikan'].notna().sum() > 0:
     fig.add_trace(go.Scatter(
         x=df_filtered['Datetime'], y=df_filtered['TMA_Pasar_Ikan'],
         mode='lines', name='Observasi Stasiun (TMA Aktual)',
-        line=dict(color='#0F172A', width=2.5)
+        line=dict(color='#64748B', width=2.5)  # Solid Slate Gray
     ))
 
-# 2. Prediksi UTide Murni (Astronomis) - Electric Luminous Cyan Dot (Cerah & Kontras)
+# 2. Prediksi UTide Murni (Astronomis) - Putus-Putus Rapat (Dot) Cyan Cerah
 fig.add_trace(go.Scatter(
     x=df_filtered['Datetime'], y=df_filtered['Prediksi_Harmonik_UTIDE'],
     mode='lines', name='Prediksi UTide Murni (Astronomis)',
-    line=dict(color='#00D2FF', width=1.8, dash='dot')
+    line=dict(color='#06B6D4', width=2.0, dash='dot')  # Dotted Cyan
 ))
 
-# 3. Prediksi Hibrida (UTide + LSTM) - Premium Indigo Bold
+# 3. Prediksi Hibrida (UTide + LSTM) - Putus-Putus Regang (Dash) Indigo Premium Tebal
 fig.add_trace(go.Scatter(
     x=df_filtered['Datetime'], y=df_filtered['Prediksi_Hibrida_Final'],
     mode='lines', name='Prediksi Hibrida (UTide + LSTM)',
-    line=dict(color='#4F46E5', width=2.8)
+    line=dict(color='#4F46E5', width=3.0, dash='dash')  # Dashed Indigo
 ))
 
-# 4. Batas Waspada Rob (230 cm) - Tanpa Legend
+# 4. Batas Waspada Rob (230 cm)
 fig.add_trace(go.Scatter(
     x=[df_filtered['Datetime'].min(), df_filtered['Datetime'].max()],
     y=[230, 230],
@@ -199,7 +222,7 @@ fig.add_trace(go.Scatter(
     line=dict(color='#F59E0B', width=1.5, dash='dash')
 ))
 
-# 5. Batas Awas Rob (250 cm) - Tanpa Legend
+# 5. Batas Awas Rob (250 cm)
 fig.add_trace(go.Scatter(
     x=[df_filtered['Datetime'].min(), df_filtered['Datetime'].max()],
     y=[250, 250],
@@ -208,10 +231,10 @@ fig.add_trace(go.Scatter(
     line=dict(color='#DC2626', width=1.5, dash='dash')
 ))
 
-# --- PENEMPELAN TEKS KETERANGAN DI BAWAH GARIS (ANNOTATIONS) ---
+# --- ANNOTATIONS: Didekatkan persis 1 cm di bawah masing-masing garis threshold ---
 fig.add_annotation(
     xref="paper", yref="y",
-    x=0.01, y=226,  # 4 cm di bawah garis 230
+    x=0.005, y=229,  # Mepet di bawah garis 230 cm
     text="<b>⚠️ Waspada Rob (230 cm)</b>",
     showarrow=False,
     xanchor="left",
@@ -221,7 +244,7 @@ fig.add_annotation(
 
 fig.add_annotation(
     xref="paper", yref="y",
-    x=0.01, y=246,  # 4 cm di bawah garis 250
+    x=0.005, y=249,  # Mepet di bawah garis 250 cm
     text="<b>🚨 Awas Rob (250 cm)</b>",
     showarrow=False,
     xanchor="left",
@@ -231,7 +254,7 @@ fig.add_annotation(
 
 fig.update_layout(
     height=400,  
-    margin=dict(l=10, r=10, t=40, b=10), # t=40 lebih mepet ke atas karena legenda sudah bersih
+    margin=dict(l=10, r=10, t=40, b=10),
     xaxis_title="Tanggal & Waktu",
     yaxis_title="Tinggi Muka Air (cm)",
     hovermode="x unified",
