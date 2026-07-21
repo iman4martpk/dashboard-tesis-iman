@@ -103,27 +103,27 @@ if len(df_eval) > 0:
     # 3. Hitung selisih nominal eror antara UTide dan Hibrida (untuk memicu arah panah)
     selisih_nominal = rmse_hib_curr - rmse_utide_curr # Hasilnya pasti NEGATIF karena eror hibrida lebih kecil
     
-    col1, col2, col3 = st.columns(3)
+   col1, col2, col3 = st.columns(3)
     with col1:
         st.metric(
             label="📈 Reduksi Eror (Peningkatan Akurasi)", 
             value=f"{peningkatan_curr:.2f} %", 
             delta="LSTM Efektif Mengoreksi Residu",
-            delta_color="normal" # Tetap Hijau + Panah Atas (karena ini prestasi positif)
+            delta_color="normal" # Tetap HIJAU panah ATAS (Positif = Bagus)
         )
     with col2:
         st.metric(
             label="📉 RMSE Harmonik UTide Murni", 
             value=f"{rmse_utide_curr:.2f} cm", 
             delta=f"+{-selisih_nominal:.2f} cm vs Hibrida", 
-            delta_color="inverse" # Dipaksa MERAH karena UTide memiliki surplus eror lebih besar
+            delta_color="normal" # 👈 UBAH KE "normal": Nilai positif akan berwarna MERAH (karena eror surplus)
         )
     with col3:
         st.metric(
             label="🏆 RMSE Komposit Hibrida (LSTM)", 
             value=f"{rmse_hib_curr:.2f} cm", 
             delta=f"{selisih_nominal:.2f} cm vs UTide", 
-            delta_color="normal" # Karena nilainya NEGATIF, Streamlit otomatis bikin PANAH BAWAH (↓) & warna HIJAU!
+            delta_color="inverse" # 👈 UBAH KE "inverse": Nilai minus/turun dibalik jadi HIJAU (karena eror menyusut = bagus!)
         )
 else:
     st.warning("🔮 **Status:** Menampilkan Area Peramalan Masa Depan. Metrik akurasi tidak dihitung karena data observasi riil lapangan belum terjadi (Masa Depan).")
