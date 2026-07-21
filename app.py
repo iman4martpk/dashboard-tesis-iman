@@ -101,32 +101,35 @@ if len(df_eval) > 0:
         peningkatan_curr = 0
         
     # 3. Hitung selisih nominal eror antara UTide dan Hibrida (untuk memicu arah panah)
-    selisih_nominal = rmse_hib_curr - rmse_utide_curr # Hasilnya pasti NEGATIF karena eror hibrida lebih kecil
+    selisih_nominal = rmse_hib_curr - rmse_utide_curr
     
-   col1, col2, col3 = st.columns(3)
+    # 4. Tampilkan Metrik dengan Indentasi Rata 4 Spasi (Aman dari IndentationError)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric(
             label="📈 Reduksi Eror (Peningkatan Akurasi)", 
             value=f"{peningkatan_curr:.2f} %", 
             delta="LSTM Efektif Mengoreksi Residu",
-            delta_color="normal" # Tetap HIJAU panah ATAS (Positif = Bagus)
+            delta_color="normal"
         )
     with col2:
         st.metric(
             label="📉 RMSE Harmonik UTide Murni", 
             value=f"{rmse_utide_curr:.2f} cm", 
             delta=f"+{-selisih_nominal:.2f} cm vs Hibrida", 
-            delta_color="normal" # 👈 UBAH KE "normal": Nilai positif akan berwarna MERAH (karena eror surplus)
+            delta_color="normal"
         )
     with col3:
         st.metric(
             label="🏆 RMSE Komposit Hibrida (LSTM)", 
             value=f"{rmse_hib_curr:.2f} cm", 
             delta=f"{selisih_nominal:.2f} cm vs UTide", 
-            delta_color="inverse" # 👈 UBAH KE "inverse": Nilai minus/turun dibalik jadi HIJAU (karena eror menyusut = bagus!)
+            delta_color="inverse"
         )
 else:
     st.warning("🔮 **Status:** Menampilkan Area Peramalan Masa Depan. Metrik akurasi tidak dihitung karena data observasi riil lapangan belum terjadi (Masa Depan).")
+
+st.markdown("---"))
 # =========================================================================
 # 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION)
 # =========================================================================
