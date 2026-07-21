@@ -7,7 +7,12 @@ from datetime import datetime
 # =========================================================================
 # 🌊 1. KONFIGURASI HALAMAN & CSS INSTRUMEN (ULTRA-SLIM RESPONSIVE)
 # =========================================================================
-st.set_page_config(page_title="Dashboard Pasut Hibrida Pasar Ikan", layout="wide", page_icon="waves")
+st.set_page_config(
+    page_title="Dashboard Pasut Hibrida Pasar Ikan",
+    layout="wide",
+    page_icon="🌊",
+    initial_sidebar_state="expanded"
+)
 
 st.markdown("""
     <style>
@@ -24,7 +29,7 @@ st.markdown("""
 
     /* Merapatkan kontainer utama ke batas paling atas layar secara aman */
     .block-container { 
-        padding-top: 0.5rem !important; 
+        padding-top: 3.2rem !important; 
         padding-bottom: 0rem !important; 
         max-width: 95% !important; 
     }
@@ -45,8 +50,12 @@ st.markdown("""
         padding-bottom: 0px !important;
     }
 
-    /* ================= 🔥 FIX ABSOLUT: NORMAL HEIGHT TRANSPARENT HEADER 🔥 ================= */
-    /* Mengembalikan tinggi normal header agar tombol tidak terpotong sistem overflow browser */
+    /* ================= HEADER TRANSPARAN, TAPI TOMBOL SIDEBAR & MENU TETAP UTUH ================= */
+    /* CATATAN PENTING: Jangan pernah men-display:none seluruh [data-testid="stToolbar"] --
+       elemen itu adalah wadah gabungan tombol sidebar KIRI dan ikon menu (⋮) KANAN yang berisi
+       Settings/Theme. Kalau di-display:none, dua-duanya ikut hilang.
+       Untuk menyembunyikan tombol "Deploy" & opsi developer, pakai .streamlit/config.toml
+       dengan client.toolbarMode = "viewer" (lihat file terpisah), BUKAN CSS ini. */
     [data-testid="stHeader"] {
         background-color: transparent !important;
         background: transparent !important;
@@ -72,11 +81,6 @@ st.markdown("""
     button[data-testid="stSidebarCollapseButton"] svg {
         fill: #F8FAFC !important;
         color: #F8FAFC !important;
-    }
-
-    /* Sembunyikan hanya aksesori bawaan yang mengganggu (menu titik tiga, dll) */
-    [data-testid="stToolbar"] {
-        display: none !important;
     }
 
     /* GAYA METRIK KUSTOM (ULTRA SLIM READING PANEL) */
@@ -126,7 +130,7 @@ st.markdown("""
     
     /* Responsive adjustment untuk mobile smartphone Android / iOS */
     @media (max-width: 767px) {
-        .block-container { padding-top: 0.5rem !important; }
+        .block-container { padding-top: 3.4rem !important; }
         .header-text h2 { font-size: 1.1rem !important; margin-top: 10px !important; }
         .summary-text { font-size: 0.72rem !important; }
         [data-testid="stMetricValue"] { font-size: 13px !important; }
