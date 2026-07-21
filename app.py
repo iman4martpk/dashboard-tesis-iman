@@ -2,157 +2,118 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+from datetime import datetime
 
 # =========================================================================
-# 🌊 1. KONFIGURASI HALAMAN & THEME (INSTRUMEN PASUT — RESPONSIVE)
+# 🌊 1. KONFIGURASI HALAMAN & CSS INSTRUMEN (ULTRA-SLIM RESPONSIVE)
 # =========================================================================
-st.set_page_config(
-    page_title="Dashboard Pasut Hibrida Pasar Ikan",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Dashboard Pasut Hibrida Pasar Ikan", layout="wide", page_icon="🌊")
 
-# Suntik CSS kustom: font instrumen, header transparan tapi tombol sidebar SELALU kontras,
-# dan hero band bergaya panel instrumen stasiun pasut.
 st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
 
-        :root {
-            --navy: #0B3D4C;
-            --navy-2: #124E61;
-            --teal: #0E7490;
-            --foam: #F8FAFC;
-            --ink: #1E293B;
-            --slate: #64748B;
-            --amber: #D97706;
-            --alert-red: #DC2626;
-        }
+    /* --- FIX PEMBUNGKUS KALENDER FILTER SIDEBAR --- */
+    [data-baseweb="popover"] {
+        transform: scale(0.95) !important;
+        transform-origin: top left !important;
+    }
+    [data-baseweb="popover"] > div {
+        max-width: 260px !important;
+    }
 
-        html, body, [class*="css"] {
-            font-family: 'Inter', sans-serif;
-            -webkit-font-smoothing: antialiased;
-            text-rendering: optimizeLegibility;
-        }
+    /* Merapatkan kontainer utama ke batas paling atas */
+    .block-container { 
+        padding-top: 0.5rem !important; 
+        padding-bottom: 0rem !important; 
+        max-width: 95% !important; 
+    }
+    
+    /* Menghilangkan gap vertikal bawaan Streamlit antar elemen */
+    [data-testid="stVerticalBlock"] > div {
+        gap: 0px !important;
+    }
 
-        /* ================= HEADER & TOMBOL SIDEBAR (SEMUA UKURAN LAYAR) ================= */
-        /* Sembunyikan toolbar bawaan Streamlit (menu titik tiga, Deploy dsb) -- BUKAN tombol sidebar */
-        [data-testid="stToolbar"] {
-            visibility: hidden !important;
-        }
-        [data-testid="stHeader"] {
-            background: transparent !important;
-            height: 0rem !important;
-        }
+    .stApp { background-color: #ffffff; }
+    
+    /* Merapatkan Header Utama ke paling atas layar */
+    .header-text { 
+        text-align: center; 
+        width: 100%; 
+        margin-top: -15px; 
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
 
-        /* Tombol buka/tutup sidebar dipaksa SELALU terlihat dengan latar solid kontras tinggi,
-           supaya tidak lagi menyatu/hilang di layar HP */
-        [data-testid="collapsedControl"],
-        [data-testid="stSidebarCollapseButton"] {
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            background-color: var(--navy) !important;
-            border-radius: 8px !important;
-            box-shadow: 0 2px 10px rgba(11, 61, 76, 0.35) !important;
-            padding: 4px !important;
-            z-index: 999999 !important;
-        }
-        [data-testid="collapsedControl"] svg,
-        [data-testid="stSidebarCollapseButton"] svg {
-            fill: var(--foam) !important;
-            color: var(--foam) !important;
-        }
+    /* GAYA METRIK KUSTOM (ULTRA SLIM READING PANEL) */
+    div[data-testid="stMetric"] {
+        background-color: #ffffff !important; 
+        border: 1px solid #e2e8f0 !important;
+        border-left: 4px solid #0B3D4C !important; 
+        padding: 4px 10px !important; 
+        border-radius: 8px !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+        min-height: 55px !important; 
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+    }
+    
+    div[data-testid="stMetricLabel"] { 
+        color: #64748b !important; 
+        font-weight: 600 !important; 
+        font-size: 0.72rem !important; 
+        margin-bottom: -4px !important; 
+        white-space: nowrap !important;
+    }
 
-        /* ================= HERO / PANEL INSTRUMEN ================= */
-        .hero-band {
-            background-image:
-                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0,50 C300,100 900,0 1200,60 L1200,120 L0,120 Z' fill='%23ffffff' fill-opacity='0.05'/%3E%3C/svg%3E"),
-                linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
-            background-repeat: no-repeat, no-repeat;
-            background-size: cover, cover;
-            background-position: bottom, center;
-            border-radius: 14px;
-            padding: 22px 28px 26px 28px;
-            margin-bottom: 14px;
-            box-shadow: 0 6px 24px rgba(11, 61, 76, 0.18);
-            text-align: center;
-        }
-        .hero-title {
-            font-family: 'Space Grotesk', sans-serif;
-            font-weight: 700;
-            color: var(--foam);
-            letter-spacing: -0.3px;
-            margin: 0;
-        }
-        .hero-subtitle {
-            font-family: 'Inter', sans-serif;
-            font-weight: 400;
-            color: #CBD5E1;
-            margin: 6px 0 0 0;
-        }
+    [data-testid="stMetricValue"] { 
+        font-family: 'IBM Plex Mono', monospace !important;
+        font-size: 15px !important; 
+        font-weight: 700 !important; 
+        color: #0f172a !important; 
+        white-space: nowrap !important;
+    }
 
-        /* 💻 DESKTOP / LAPTOP */
-        @media (min-width: 768px) {
-            .main .block-container {
-                padding-top: 1.2rem !important;
-                padding-bottom: 0rem !important;
-                padding-left: 2.5rem !important;
-                padding-right: 2.5rem !important;
-            }
-            .hero-title { font-size: 32px; }
-            .hero-subtitle { font-size: 14.5px; }
-        }
+    div[data-testid="stMetricDelta"] { display: none !important; }
+    div[data-testid="column"] { padding: 0 4px !important; }
 
-        /* 📱 HP (ANDROID / IOS) */
-        @media (max-width: 767px) {
-            .main .block-container {
-                padding-top: 3.2rem !important; /* ruang aman di bawah tombol sidebar mengambang */
-                padding-left: 1rem !important;
-                padding-right: 1rem !important;
-            }
-            .hero-title { font-size: 21px; line-height: 1.35; }
-            .hero-subtitle { font-size: 12px; margin-top: 5px; }
-            .hero-band { padding: 16px 16px 20px 16px; border-radius: 12px; }
-        }
+    /* Summary Box Terintegrasi Melekat ke Header */
+    .summary-box {
+        background-color: #f1f5f9 !important; 
+        padding: 6px 12px !important; 
+        border-radius: 8px !important; 
+        margin-top: -5px !important;
+        margin-bottom: 8px !important; 
+        border-left: 5px solid #0B3D4C !important; 
+        text-align: center !important;
+    }
+    .summary-text { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.82rem; color: #1e293b; }
 
-        .stVerticalBlock { gap: 0.8rem !important; }
+    /* Toolbar & Default Header Hiding Controls */
+    [data-testid="stToolbar"] { visibility: hidden !important; }
+    [data-testid="stHeader"] { background: transparent !important; height: 0rem !important; }
 
-        /* ================= KARTU METRIK BERGAYA "GAUGE READOUT" ================= */
-        div[data-testid="stMetric"] {
-            background-color: #FFFFFF;
-            border: 1px solid #E2E8F0;
-            border-left: 4px solid var(--teal);
-            border-radius: 10px;
-            padding: 8px 14px !important;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-        }
-        div[data-testid="stMetricValue"] {
-            font-family: 'IBM Plex Mono', monospace !important;
-            color: var(--ink);
-        }
-        div[data-testid="stMetricLabel"] {
-            font-family: 'Inter', sans-serif;
-            color: var(--slate);
-        }
-        /* Bonus kosmetik: beda warna aksen tiap kartu KPI (navy / teal / amber).
-           Ini bergantung struktur DOM st.columns Streamlit versi kamu -- kalau tidak
-           berpengaruh di versimu, aman diabaikan, tidak merusak apa pun. */
-        div[data-testid="column"]:nth-of-type(1) div[data-testid="stMetric"] { border-left-color: var(--navy); }
-        div[data-testid="column"]:nth-of-type(2) div[data-testid="stMetric"] { border-left-color: var(--teal); }
-        div[data-testid="column"]:nth-of-type(3) div[data-testid="stMetric"] { border-left-color: var(--amber); }
+    /* Tombol Pemicu Sidebar Mengambang Kontras Tinggi untuk Akses Android */
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapseButton"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        background-color: #0B3D4C !important;
+        border-radius: 8px !important;
+        padding: 4px !important;
+        z-index: 999999 !important;
+    }
+    
+    /* Responsive adjustment untuk mobile smartphone */
+    @media (max-width: 767px) {
+        .block-container { padding-top: 3.0rem !important; }
+        .header-text h2 { font-size: 1.1rem !important; }
+        .summary-text { font-size: 0.72rem !important; }
+        [data-testid="stMetricValue"] { font-size: 13px !important; }
+    }
     </style>
-""", unsafe_allow_html=True)
-
-# Hero Header — panel instrumen navy dengan tekstur gelombang halus
-st.markdown("""
-    <div class="hero-band">
-        <h1 class="hero-title">🌊 Dashboard Operasional Pasut Hibrida (UTide + LSTM)</h1>
-        <p class="hero-subtitle">
-            <b>Stasiun Pemantauan:</b> Pasar Ikan, Jakarta &nbsp;|&nbsp;
-            <b>Fokus Riset:</b> Koreksi Residu Hidro-Oseanografi Non-Astronomis
-        </p>
-    </div>
 """, unsafe_allow_html=True)
 
 # =========================================================================
@@ -166,11 +127,11 @@ def load_data():
 try:
     df = load_data()
 except Exception as e:
-    st.error(f"❌ Gagal memuat file database utama. Pastikan file 'HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv' sudah di-upload ke GitHub. Error: {e}")
+    st.error(f"❌ Database utama gagal dimuat. Error: {e}")
     st.stop()
 
 # =========================================================================
-# ⚙️ 3. PANEL KONTROL SIDEBAR (PRESET STUDI KASUS & CUSTOM FILTER)
+# ⚙️ 3. PANEL KONTROL SIDEBAR (PRESET ANATOMI STUDI KASUS)
 # =========================================================================
 st.sidebar.header("⚡ Kontrol Panel Analisis")
 
@@ -178,35 +139,31 @@ PRESETS = {
     "Studi Kasus 1: Periode Mei": {
         "start": "2026-05-14 00:00:00",
         "end": "2026-05-21 00:00:00",
-        "desc": "Evaluasi performa model hibrida pada segmen awal bulan Mei."
+        "desc": "Segmen awal bulan Mei."
     },
     "Studi Kasus 2: Periode Juni": {
         "start": "2026-06-12 00:00:00",
         "end": "2026-06-19 00:00:00",
-        "desc": "Evaluasi pada fase anomali residu meteorologis tinggi."
+        "desc": "Fase anomali residu meteorologis tinggi."
     },
     "Studi Kasus 3: Periode Juli": {
         "start": "2026-07-12 00:00:00",
         "end": "2026-07-19 00:00:00",
-        "desc": "Batas data historis aktual sebelum peramalan masa depan."
+        "desc": "Batas data aktual observasi lapangan."
     },
-    "🔮 MODE FORECASTING MASA DEPAN (Agustus - Desember 2026)": {
+    "🔮 MODE FORECASTING MASA DEPAN": {
         "start": "2026-07-21 19:00:00",
         "end": "2026-12-31 23:00:00",
-        "desc": "Sistem peramalan estafet bergulir tanpa data observasi lapangan."
+        "desc": "Peramalan estafet bergulir tanpa data observasi riil."
     },
     "🎛️ Custom Rentang Waktu (Manual)": {
         "start": None,
         "end": None,
-        "desc": "Bebas menentukan rentang tanggal analisis sendiri."
+        "desc": "Bebas menentukan rentang analisis tanggal sendiri."
     }
 }
 
-pilihan_mode = st.sidebar.selectbox(
-    "Pilih Mode Analisis / Studi Kasus:",
-    list(PRESETS.keys()),
-    index=1  # Default langsung menyorot ke Juni
-)
+pilihan_mode = st.sidebar.selectbox("Pilih Mode Analisis / Studi Kasus:", list(PRESETS.keys()), index=1)
 
 if pilihan_mode == "🎛️ Custom Rentang Waktu (Manual)":
     min_date = df['Datetime'].min().date()
@@ -220,146 +177,146 @@ else:
     df_filtered = df[(df['Datetime'] >= tgl_start) & (df['Datetime'] <= tgl_end)].copy()
 
 # =========================================================================
-# 📊 4. KOMPUTASI METRIK VALIDASI DINAMIS (KPI SCORECARDS)
+# 📊 4. KOMPUTASI KPI SCORECARDS & METADATA BAR
 # =========================================================================
-st.markdown("<h3 style='margin:5px 0 3px 0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📊 Performa Validasi Real-Time pada Rentang Terpilih</h3>", unsafe_allow_html=True)
-
 df_eval = df_filtered[df_filtered['TMA_Pasar_Ikan'].notna() & df_filtered['Prediksi_Hibrida_Final'].notna()]
 
+# Main Header Title
+st.markdown("""
+    <div class="header-text">
+        <h2 style="margin: 0; color: #0F172A; font-family: 'Space Grotesk', sans-serif; font-weight: bold; font-size: 1.55rem;">
+            🌊 MONITORING PASUT HIBRIDA (UTIDE + LSTM) REAL-TIME
+        </h2>
+    </div>
+""", unsafe_allow_html=True)
+
+# Perhitungan nilai statistik validasi model
 if len(df_eval) > 0:
     rmse_utide_curr = np.sqrt(np.mean((df_eval['TMA_Pasar_Ikan'] - df_eval['Prediksi_Harmonik_UTIDE']) ** 2))
     rmse_hib_curr = np.sqrt(np.mean((df_eval['TMA_Pasar_Ikan'] - df_eval['Prediksi_Hibrida_Final']) ** 2))
-
-    if rmse_utide_curr > 0:
-        peningkatan_curr = ((rmse_utide_curr - rmse_hib_curr) / rmse_utide_curr) * 100
-    else:
-        peningkatan_curr = 0
-
+    peningkatan_curr = ((rmse_utide_curr - rmse_hib_curr) / rmse_utide_curr) * 100 if rmse_utide_curr > 0 else 0
     selisih_nominal = rmse_hib_curr - rmse_utide_curr
-
-    st.sidebar.info(f"ℹ️ **Deskripsi:**\n{PRESETS[pilihan_mode]['desc']}\n\n📈 **Akurasi Terdeteksi:** +{peningkatan_curr:.2f}%")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric(
-            label="📈 Reduksi Eror (Peningkatan Akurasi)",
-            value=f"{peningkatan_curr:.2f} %",
-            delta="LSTM Efektif Mengoreksi Residu",
-            delta_color="normal"
-        )
-    with col2:
-        st.metric(
-            label="📉 RMSE Harmonik UTide Murni",
-            value=f"{rmse_utide_curr:.2f} cm",
-            delta=f"+{-selisih_nominal:.2f} cm vs Hibrida",
-            delta_color="normal"
-        )
-    with col3:
-        st.metric(
-            label="🏆 RMSE Komposit Hibrida (LSTM)",
-            value=f"{rmse_hib_curr:.2f} cm",
-            delta=f"{selisih_nominal:.2f} cm vs UTide",
-            delta_color="inverse"
-        )
+    
+    # Render Informasi ke Panel Summary Box Melekat
+    st.markdown(f"""
+        <div class="summary-box">
+            <span class="summary-text">
+                📍 <b>Stasiun:</b> Pasar Ikan, Jakarta | 🛡️ <b>Fokus:</b> Koreksi Residu Non-Astronomis | 🔎 <b>Studi:</b> {PRESETS[pilihan_mode]['desc']}
+            </span>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    m1, m2, m3 = st.columns(3)
+    
+    # Menggunakan Kustom HTML Injector Card untuk kestabilan Rendering Android
+    m1.markdown(f"""
+        <div data-testid="stMetric" style="border-left-color: #22c55e !important;">
+            <label data-testid="stMetricLabel">📈 REDUKSI EROR (AKURASI)</label>
+            <div data-testid="stMetricValue">
+                {peningkatan_curr:.2f} % <span style="color: #22c55e; font-size: 0.72rem; font-weight: bold; font-family: 'Inter';">▲ OPTIMAL</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    m2.markdown(f"""
+        <div data-testid="stMetric" style="border-left-color: #06B6D4 !important;">
+            <label data-testid="stMetricLabel">📉 RMSE HARMONIK UTIDE MURNI</label>
+            <div data-testid="stMetricValue">
+                {rmse_utide_curr:.2f} cm <span style="color: #ef4444; font-size: 0.72rem; font-weight: bold; font-family: 'Inter';">+{abs(selisih_nominal):.1f} cm vs Hibrida</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    m3.markdown(f"""
+        <div data-testid="stMetric" style="border-left-color: #4F46E5 !important;">
+            <label data-testid="stMetricLabel">🏆 RMSE KOMPOSIT HIBRIDA (LSTM)</label>
+            <div data-testid="stMetricValue">
+                {rmse_hib_curr:.2f} cm <span style="color: #22c55e; font-size: 0.72rem; font-weight: bold; font-family: 'Inter';">-{abs(selisih_nominal):.1f} cm vs UTide</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 else:
-    st.sidebar.info(f"ℹ️ **Deskripsi:**\n{PRESETS[pilihan_mode]['desc']}")
-    st.warning("🔮 **Status:** Menampilkan Area Peramalan Masa Depan. Metrik akurasi tidak dihitung karena data observasi riil lapangan belum terjadi (Masa Depan).")
+    st.markdown(f"""
+        <div class="summary-box" style="border-left-color: #d97706 !important;">
+            <span class="summary-text" style="color: #b45309;">
+                🔮 <b>MODE FORECASTING MASA DEPAN</b> | Grafik menampilkan kurva proyeksi. Metrik RMSE tidak dihitung karena data lapangan belum rilis.
+            </span>
+        </div>
+    """, unsafe_allow_html=True)
 
 # =========================================================================
-# 📈 5. GRAFIK INTERAKTIF PLOTLY (TIME-SERIES VISUALIZATION — TEMA INSTRUMEN)
+# 📈 5. VISUALISASI GRAFIK TIMESERIES PLOTLY INTERAKTIF
 # =========================================================================
-st.markdown(f"<h3 style='margin:5px 0 3px 0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>", unsafe_allow_html=True)
-
 fig = go.Figure()
 
-# 1. Observasi Stasiun (TMA Aktual) - Solid Abu-Abu/Slate
+# 1. Data Observasi Lapangan: Solid Slate Grey (Garis utuh tanpa putus)
 if df_filtered['TMA_Pasar_Ikan'].notna().sum() > 0:
     fig.add_trace(go.Scatter(
         x=df_filtered['Datetime'], y=df_filtered['TMA_Pasar_Ikan'],
         mode='lines', name='Observasi Stasiun (TMA Aktual)',
-        line=dict(color='#64748B', width=2.5)  # Solid Slate Gray
+        line=dict(color='#64748B', width=2.5)
     ))
 
-# 2. Prediksi UTide Murni (Astronomis) - Putus-Putus Rapat (Dot) Teal Laut
+# 2. Prediksi UTide: Dotted (Titik rapat) Luminous Cyan Cerah
 fig.add_trace(go.Scatter(
     x=df_filtered['Datetime'], y=df_filtered['Prediksi_Harmonik_UTIDE'],
     mode='lines', name='Prediksi UTide Murni (Astronomis)',
-    line=dict(color='#0E7490', width=2.0, dash='dot')  # Dotted Teal
+    line=dict(color='#06B6D4', width=2.0, dash='dot')
 ))
 
-# 3. Prediksi Hibrida (UTide + LSTM) - Putus-Putus Regang (Dash) Indigo Premium Tebal
+# 3. Prediksi Hibrida: Dashed (Putus-putus renggang) Premium Indigo Tebal
 fig.add_trace(go.Scatter(
     x=df_filtered['Datetime'], y=df_filtered['Prediksi_Hibrida_Final'],
     mode='lines', name='Prediksi Hibrida (UTide + LSTM)',
-    line=dict(color='#4F46E5', width=3.0, dash='dash')  # Dashed Indigo
+    line=dict(color='#4F46E5', width=3.2, dash='dash')
 ))
 
-# 4. Batas Waspada Rob (230 cm)
-fig.add_trace(go.Scatter(
-    x=[df_filtered['Datetime'].min(), df_filtered['Datetime'].max()],
-    y=[230, 230],
-    mode='lines',
-    showlegend=False,
-    line=dict(color='#D97706', width=1.5, dash='dash')
-))
+# 4. Garis Batas Peringatan Rob Kompak
+fig.add_hline(y=250, line_dash="dash", line_color="#DC2626", line_width=1.5)
+fig.add_hline(y=230, line_dash="dash", line_color="#D97706", line_width=1.5)
 
-# 5. Batas Awas Rob (250 cm)
-fig.add_trace(go.Scatter(
-    x=[df_filtered['Datetime'].min(), df_filtered['Datetime'].max()],
-    y=[250, 250],
-    mode='lines',
-    showlegend=False,
-    line=dict(color='#DC2626', width=1.5, dash='dash')
-))
-
-# --- ANNOTATIONS: Didekatkan persis 1 cm di bawah masing-masing garis threshold ---
+# 5. Label Threshold Rob Presisi (Ditempel Tepat 1 Satuan Di Bawah Garis Batas)
 fig.add_annotation(
-    xref="paper", yref="y",
-    x=0.005, y=229,
-    text="<b>⚠️ Waspada Rob (230 cm)</b>",
-    showarrow=False,
-    xanchor="left",
-    yanchor="top",
-    font=dict(color='#D97706', size=11)
+    xref="paper", yref="y", x=0.005, y=249,
+    text="<b>🚨 AWAS ROB (250 cm)</b>", showarrow=False,
+    xanchor="left", yanchor="top", font=dict(color='#DC2626', size=10.5)
 )
 
 fig.add_annotation(
-    xref="paper", yref="y",
-    x=0.005, y=249,
-    text="<b>🚨 Awas Rob (250 cm)</b>",
-    showarrow=False,
-    xanchor="left",
-    yanchor="top",
-    font=dict(color='#DC2626', size=11)
+    xref="paper", yref="y", x=0.005, y=229,
+    text="<b>⚠️ WASPADA ROB (230 cm)</b>", showarrow=False,
+    xanchor="left", yanchor="top", font=dict(color='#D97706', size=10.5)
 )
 
+# Konfigurasi Layout Responsif Grafik
 fig.update_layout(
-    height=400,
-    margin=dict(l=10, r=10, t=40, b=10),
-    xaxis_title="Tanggal & Waktu",
-    yaxis_title="Tinggi Muka Air (cm)",
+    height=410, 
+    template="plotly_white", 
+    margin=dict(l=10, r=10, t=25, b=10), 
     hovermode="x unified",
-    hoverlabel=dict(bgcolor="white", font_size=12),
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-    font=dict(family="Inter, sans-serif", color="#1E293B")
+    hoverlabel=dict(bgcolor="white", font_size=11),
+    xaxis=dict(tickfont=dict(size=10)),
+    yaxis=dict(title="Tinggi Air (cm)", titlefont=dict(size=11), tickfont=dict(size=10)),
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10.5))
 )
 
-st.plotly_chart(fig, use_container_width=True)
+# Render Grafik Tanpa Modebar untuk menghemat memori GPU HP Android
+st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 # =========================================================================
-# 📋 6. INTEGRASI DATA TABULAR & FITUR EKSPOR DOKUMEN (Di luar frame utama)
+# 📋 6. INTEGRASI DATA TABULAR & DOWNLOAD CONTROLLER (Di Bawah Halaman)
 # =========================================================================
-st.markdown("---")
-st.markdown("<h3 style='margin:0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📋 Data Tabular Hasil Pemotongan</h3>", unsafe_allow_html=True)
-st.markdown("Berikut adalah potongan baris data numerik yang merepresentasikan kurva grafik di atas:")
+st.divider()
+st.markdown("<h4 style='margin:0 0 4px 0; padding:0; font-size:14px; font-weight:700; color:#1E293B;'>📋 Potongan Basis Data Numerik Terfilter</h4>", unsafe_allow_html=True)
 
 kolom_tampilan = ['Datetime', 'TMA_Pasar_Ikan', 'Prediksi_Harmonik_UTIDE', 'Prediksi_Hibrida_Final']
 st.dataframe(df_filtered[kolom_tampilan].reset_index(drop=True), use_container_width=True)
 
 csv_data = df_filtered[kolom_tampilan].to_csv(index=False).encode('utf-8')
 st.download_button(
-    label="📥 Download Data Potongan Ini (.CSV)",
+    label="📥 Unduh Data Potongan Kerja Ini (.CSV)",
     data=csv_data,
-    file_name=f"DATA_TESIS_STUDI_KASUS.csv",
+    file_name=f"DATA_INSPEKSI_PASUT_HIBRIDA.csv",
     mime="text/csv",
+    use_container_width=True
 )
