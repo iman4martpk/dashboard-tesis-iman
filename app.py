@@ -45,6 +45,36 @@ st.markdown("""
         padding-bottom: 0px !important;
     }
 
+    /* ================= FIX UTAMA: TOMBOL PEMICU BUKA SIDEBAR MENGAMBANG ================= */
+    /* Saat sidebar ditutup, paksa tombol pemicu keluar dari aliran DOM dan mengambang di kiri atas */
+    [data-testid="collapsedControl"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        background-color: #0B3D4C !important;
+        border-radius: 8px !important;
+        position: fixed !important;
+        top: 12px !important;
+        left: 12px !important;
+        z-index: 999999 !important;
+        box-shadow: 0 2px 12px rgba(11, 61, 76, 0.4) !important;
+        padding: 5px !important;
+    }
+    [data-testid="collapsedControl"] svg {
+        fill: #F8FAFC !important;
+        color: #F8FAFC !important;
+    }
+
+    /* Sembunyikan toolbar bawaan Streamlit (menu titik tiga, Deploy dsb) */
+    [data-testid="stToolbar"] {
+        visibility: hidden !important;
+    }
+    
+    /* Buat background header bawaan transparan agar tidak menumpuk */
+    [data-testid="stHeader"] {
+        background: transparent !important;
+    }
+
     /* GAYA METRIK KUSTOM (ULTRA SLIM READING PANEL) */
     div[data-testid="stMetric"] {
         background-color: #ffffff !important; 
@@ -89,29 +119,17 @@ st.markdown("""
         text-align: center !important;
     }
     .summary-text { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.82rem; color: #1e293b; }
-
-    /* Toolbar & Default Header Hiding Controls */
-    [data-testid="stToolbar"] { visibility: hidden !important; }
-    [data-testid="stHeader"] { background: transparent !important; height: 0rem !important; }
-
-    /* Tombol Pemicu Sidebar Mengambang Kontras Tinggi untuk Akses Android */
-    [data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapseButton"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        background-color: #0B3D4C !important;
-        border-radius: 8px !important;
-        padding: 4px !important;
-        z-index: 999999 !important;
-    }
     
     /* Responsive adjustment untuk mobile smartphone */
     @media (max-width: 767px) {
-        .block-container { padding-top: 3.0rem !important; }
+        .block-container { padding-top: 3.2rem !important; }
         .header-text h2 { font-size: 1.1rem !important; }
         .summary-text { font-size: 0.72rem !important; }
         [data-testid="stMetricValue"] { font-size: 13px !important; }
+    }
+    @media (min-width: 768px) {
+        [data-testid="stHeader"] { height: 0rem !important; }
+        .main .block-container { padding-top: 1.2rem !important; }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -289,7 +307,7 @@ fig.add_annotation(
     xanchor="left", yanchor="top", font=dict(color='#D97706', size=11)
 )
 
-# --- KONFIGURASI LAYOUT RESPONSIF YANG SUDAH DIPERBAIKI (KURUNG SUDAH DITUTUP SEMPURNA) ---
+# --- KONFIGURASI LAYOUT RESPONSIF YANG SUDAH DIPERBAIKI ---
 fig.update_layout(
     height=410, 
     template="plotly_white", 
