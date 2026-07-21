@@ -45,40 +45,47 @@ st.markdown("""
         padding-bottom: 0px !important;
     }
 
-    /* ================= FIX UTAMA: RESPONSIVE SIDEBAR TOGGLE CONTROLS ================= */
-    /* Membuat header bawaan transparan & tembus klik agar tidak memblokir elemen di bawahnya */
+    /* ================= 🔥 FIX ABSOLUT: TOMBOL SIDEBAR FLOATING LAYER 🔥 ================= */
+    /* Membuat header bawaan transparan & tembus klik agar tidak memblokir tombol */
     [data-testid="stHeader"] {
         background-color: transparent !important;
         pointer-events: none !important;
         z-index: 99999 !important;
     }
 
-    /* Paksa tombol BUKA sidebar (saat tertutup) selalu muncul kontras & bisa diklik kembali */
-    [data-testid="collapsedControl"] {
+    /* Cabut paksa tombol BUKA sidebar (hamburger ☰) agar melayang konstan di pojok kiri atas */
+    div[data-testid="collapsedControl"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
-        background-color: #0B3D4C !important;
-        border-radius: 6px !important;
-        padding: 5px !important;
-        pointer-events: auto !important; /* Mengembalikan fungsi klik */
-        box-shadow: 0 2px 8px rgba(11, 61, 76, 0.3) !important;
+        position: fixed !important; /* Melayang bebas keluar dari tumpukan konten */
+        top: 12px !important;
+        left: 12px !important;
+        background-color: #0B3D4C !important; /* Warna Navy Khas Pasut Priok */
+        border-radius: 8px !important;
+        padding: 6px !important;
+        z-index: 9999999 !important; /* Kasta layer tertinggi agar tidak tertimbun */
+        pointer-events: auto !important; /* Wajib aktif agar bisa diklik */
+        box-shadow: 0 4px 15px rgba(11, 61, 76, 0.4) !important;
     }
     
-    /* Paksa tombol TUTUP sidebar (saat terbuka) tetap konsisten bergaya solid */
-    [data-testid="stSidebarCollapseButton"] {
+    /* Setel tombol TUTUP sidebar (saat terbuka) agar ikut solid & serasi */
+    button[data-testid="stSidebarCollapseButton"] {
         background-color: #0B3D4C !important;
-        border-radius: 6px !important;
+        border-radius: 8px !important;
+        padding: 6px !important;
+        z-index: 9999999 !important;
+        pointer-events: auto !important;
     }
 
-    /* Mengubah warna icon panah / hamburger menu menjadi putih bersih */
-    [data-testid="collapsedControl"] svg,
-    [data-testid="stSidebarCollapseButton"] svg {
+    /* Paksa semua warna icon panah / hamburger menu menjadi putih bersih berkilau */
+    div[data-testid="collapsedControl"] svg,
+    button[data-testid="stSidebarCollapseButton"] svg {
         fill: #F8FAFC !important;
         color: #F8FAFC !important;
     }
 
-    /* Sembunyikan hanya toolbar aksesoris bawaan (menu titik tiga, deploy button, dll) */
+    /* Sembunyikan toolbar bawaan Streamlit (menu titik tiga, deploy button, dll) */
     [data-testid="stToolbar"] {
         visibility: hidden !important;
     }
