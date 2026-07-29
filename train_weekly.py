@@ -1,28 +1,25 @@
-"""
-Script Retraining Otomatis Mingguan (Jalur 2) - Tesis Iman
-(Versi Auto-Install Dependencies Mandiri)
-"""
-
 # =========================================================================
-# 0. AUTO INSTALL DEPENDENCIES MANDIRI (JIKA BELUM ADA DI SERVER)
+# 📦 FORCED AUTO-INSTALL (Wajib Paling Atas Biar Gak Keburu Crash)
 # =========================================================================
 import subprocess
 import sys
 
-def install_packages():
-    packages = ['tensorflow', 'scikit-learn', 'pandas', 'numpy']
-    for package in packages:
-        try:
-            __import__(package if package != 'scikit-learn' else 'sklearn')
-        except ImportError:
-            print(f"📦 Menginstal otomatis modul yang kurang: {package}...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+def paksa_install(package_name):
+    try:
+        if package_name == 'scikit-learn':
+            __import__('sklearn')
+        else:
+            __import__(package_name)
+    except ImportError:
+        print(f"🚨 Modul {package_name} tidak ditemukan! Memaksa instalasi di server...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
 
-# Jalankan pengecekan instalasi sebelum impor resmi
-install_packages()
+# Paksa pasang dua biang kerok yang suka hilang
+paksa_install('tensorflow')
+paksa_install('scikit-learn')
 
 # =========================================================================
-# 1. IMPOR MODUL UTAMA SETELAH AMAN
+# 🧠 SEKARANG AMAN UNTUK IMPOR SEPERTI BIASA
 # =========================================================================
 import os
 import pickle
@@ -33,6 +30,7 @@ from datetime import datetime
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 
+# --- KONFIGURASI ASET MASTER TESIS ---
 DATA_FILE_HIBRIDA = "HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv"
 DATA_FILE_LSTM = "HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv"
 MODEL_LSTM_MURNI = "model_pasar_ikan_lstm_murni_master.keras"
