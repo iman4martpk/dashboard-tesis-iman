@@ -99,14 +99,14 @@ st.markdown("""
     div[data-testid="stMetricLabel"] { 
         color: #64748b !important; 
         font-weight: 600 !important; 
-        font-size: 0.72rem !important; 
+        font-size: 0.68rem !important; 
         margin-bottom: -4px !important; 
         white-space: nowrap !important;
         font-family: Arial, Helvetica, sans-serif !important;
     }
 
     [data-testid="stMetricValue"] { 
-        font-size: 15px !important; 
+        font-size: 14px !important; 
         font-weight: 700 !important; 
         color: #0f172a !important; 
         white-space: nowrap !important;
@@ -133,23 +133,33 @@ st.markdown("""
         .block-container { padding-top: 3.4rem !important; }
         .header-text h2 { font-size: 1.1rem !important; margin-top: 10px !important; }
         .summary-text { font-size: 0.72rem !important; }
-        [data-testid="stMetricValue"] { font-size: 13px !important; }
+        [data-testid="stMetricValue"] { font-size: 12px !important; }
     }
     </style>
 """, unsafe_allow_html=True)
 
 # =========================================================================
-# 📥 2. DATA PIPELINE (LOAD DATABASE MASTER)
+# 📥 2. DATA PIPELINE (LOAD & MERGE DATABASE MASTER)
 # =========================================================================
+# Silakan sesuaikan string ini jika nama kolom di dalam CSV LSTM Murni berbeda
+KOLOM_LSTM_MURNI = 'Prediksi_LSTM_Murni' 
+
 @st.cache_data
 def load_data():
-    df = pd.read_csv("HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv", parse_dates=['Datetime'])
-    return df
+    # Load File Utama (Hibrida & UTide)
+    df_hibrida = pd.read_csv("HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv", parse_dates=['Datetime'])
+    
+    # Load File Pendukung (LSTM Murni)
+    df_lstm = pd.read_csv("HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv", parse_dates=['Datetime'])
+    
+    # Penggabungan secara presisi menggunakan key 'Datetime'
+    df_merged = pd.merge(df_hibrida, df_lstm, on='Datetime', how='inner')
+    return df_merged
 
 try:
     df = load_data()
 except Exception as e:
-    st.error(f"❌ Database utama gagal dimuat. Error: {e}")
+    st.error(f"❌ Database utama atau file LSTM Murni gagal dimuat. Error: {e}")
     st.stop()
 
 # =========================================================================
@@ -201,7 +211,11 @@ else:
 # =========================================================================
 # 📊 4. KOMPUTASI KPI SCORECARDS & METADATA BAR
 # =========================================================================
-df_eval = df_filtered[df_filtered['TMA_Pasar_Ikan'].notna() & df_filtered['Prediksi_Hibrida_Final'].notna()]
+df_eval = df_filtered[
+    df_filtered['TMA_Pasar_Ikan'].notna() & 
+    df_filtered['Prediksi_Hibrida_Final'].notna() & 
+    df_filtered[KOLOM_LSTM_MURNI].notna()
+]
 
 # Main Header Title
 st.markdown("""
@@ -215,7 +229,10 @@ st.markdown("""
 # Perhitungan nilai statistik validasi model
 if len(df_eval) > 0:
     rmse_utide_curr = np.sqrt(np.mean((df_eval['TMA_Pasar_Ikan'] - df_eval['Prediksi_Harmonik_UTIDE']) ** 2))
+    rmse_lstm_curr = np.sqrt(np.mean((df_eval['TMA_Pasar_Ikan'] - df_eval[KOLOM_LSTM_MURNI]) ** 2))
     rmse_hib_curr = np.sqrt(np.mean((df_eval['TMA_Pasar_Ikan'] - df_eval['Prediksi_Hibrida_Final']) ** 2))
+    
+    # Reduksi error dihitung komparasi UTide vs Hibrida Final
     peningkatan_curr = ((rmse_utide_curr - rmse_hib_curr) / rmse_utide_curr) * 100 if rmse_utide_curr > 0 else 0
     selisih_nominal = rmse_hib_curr - rmse_utide_curr
     
@@ -228,31 +245,41 @@ if len(df_eval) > 0:
         </div>
     """, unsafe_allow_html=True)
     
-    m1, m2, m3 = st.columns(3)
+    # Ekspansi menjadi 4 kolom metrik
+    m1, m2, m3, m4 = st.columns(4)
     
     m1.markdown(f"""
         <div data-testid="stMetric" style="border-left-color: #22c55e !important;">
             <label data-testid="stMetricLabel">📈 REDUKSI EROR (AKURASI)</label>
             <div data-testid="stMetricValue">
-                {peningkatan_curr:.2f} % <span style="color: #22c55e; font-size: 0.72rem; font-weight: bold; font-family: Arial, Helvetica, sans-serif;">▲ OPTIMAL</span>
+                {peningkatan_curr:.2f} % <span style="color: #22c55e; font-size: 0.68rem; font-weight: bold; font-family: Arial, Helvetica, sans-serif;">▲ OPTIMAL</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
     
     m2.markdown(f"""
         <div data-testid="stMetric" style="border-left-color: #06B6D4 !important;">
-            <label data-testid="stMetricLabel">📉 RMSE HARMONIK UTIDE MURNI</label>
+            <label data-testid="stMetricLabel">📉 RMSE UTIDE MURNI</label>
             <div data-testid="stMetricValue">
-                {rmse_utide_curr:.2f} cm <span style="color: #ef4444; font-size: 0.72rem; font-weight: bold; font-family: Arial, Helvetica, sans-serif;">+{abs(selisih_nominal):.1f} cm vs Hibrida</span>
+                {rmse_utide_curr:.2f} cm <span style="color: #ef4444; font-size: 0.65rem; font-weight: bold; font-family: Arial, Helvetica, sans-serif;">+{(rmse_utide_curr-rmse_hib_curr):.1f} cm vs Hib</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
     
     m3.markdown(f"""
-        <div data-testid="stMetric" style="border-left-color: #4F46E5 !important;">
-            <label data-testid="stMetricLabel">🏆 RMSE KOMPOSIT HIBRIDA (LSTM)</label>
+        <div data-testid="stMetric" style="border-left-color: #F59E0B !important;">
+            <label data-testid="stMetricLabel">📊 RMSE LSTM MURNI</label>
             <div data-testid="stMetricValue">
-                {rmse_hib_curr:.2f} cm <span style="color: #22c55e; font-size: 0.72rem; font-weight: bold; font-family: Arial, Helvetica, sans-serif;">-{abs(selisih_nominal):.1f} cm vs UTide</span>
+                {rmse_lstm_curr:.2f} cm <span style="color: #ef4444; font-size: 0.65rem; font-weight: bold; font-family: Arial, Helvetica, sans-serif;">+{(rmse_lstm_curr-rmse_hib_curr):.1f} cm vs Hib</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    m4.markdown(f"""
+        <div data-testid="stMetric" style="border-left-color: #4F46E5 !important;">
+            <label data-testid="stMetricLabel">🏆 RMSE KOMPOSIT HIBRIDA</label>
+            <div data-testid="stMetricValue">
+                {rmse_hib_curr:.2f} cm <span style="color: #22c55e; font-size: 0.65rem; font-weight: bold; font-family: Arial, Helvetica, sans-serif;">BEST MODEL</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -272,7 +299,7 @@ st.markdown(f"<h3 style='margin:5px 0 3px 0; padding:0; font-size:19px; font-wei
 
 fig = go.Figure()
 
-# 1. Data Observasi Lapangan: Solid Slate Grey (Garis utuh tanpa putus)
+# 1. Data Observasi Lapangan: Solid Slate Grey
 if df_filtered['TMA_Pasar_Ikan'].notna().sum() > 0:
     fig.add_trace(go.Scatter(
         x=df_filtered['Datetime'], y=df_filtered['TMA_Pasar_Ikan'],
@@ -280,25 +307,32 @@ if df_filtered['TMA_Pasar_Ikan'].notna().sum() > 0:
         line=dict(color='#64748B', width=2.5)
     ))
 
-# 2. Prediksi UTide: Dotted (Titik rapat) Luminous Cyan Cerah
+# 2. Prediksi UTide: Dotted Luminous Cyan Cerah
 fig.add_trace(go.Scatter(
     x=df_filtered['Datetime'], y=df_filtered['Prediksi_Harmonik_UTIDE'],
     mode='lines', name='Prediksi UTide Murni (Astronomis)',
     line=dict(color='#06B6D4', width=2.0, dash='dot')
 ))
 
-# 3. Prediksi Hibrida: Dashed (Putus-putus renggang) Premium Indigo Tebal
+# 3. BARU! Prediksi LSTM Murni: Dash-Dot Premium Amber/Orange
+fig.add_trace(go.Scatter(
+    x=df_filtered['Datetime'], y=df_filtered[KOLOM_LSTM_MURNI],
+    mode='lines', name='Prediksi LSTM Murni (Non-Astronomis)',
+    line=dict(color='#F59E0B', width=2.0, dash='dashdot')
+))
+
+# 4. Prediksi Hibrida: Dashed Premium Indigo Tebal
 fig.add_trace(go.Scatter(
     x=df_filtered['Datetime'], y=df_filtered['Prediksi_Hibrida_Final'],
     mode='lines', name='Prediksi Hibrida (UTide + LSTM)',
     line=dict(color='#4F46E5', width=3.2, dash='dash')
 ))
 
-# 4. Garis Batas Peringatan Rob Kompak
+# 5. Garis Batas Peringatan Rob Kompak
 fig.add_hline(y=250, line_dash="dash", line_color="#DC2626", line_width=1.5)
 fig.add_hline(y=230, line_dash="dash", line_color="#D97706", line_width=1.5)
 
-# 5. Label Threshold Rob Presisi (Ditempel Tepat 1 Satuan Di Bawah Garis Batas)
+# Label Threshold Rob Presisi
 fig.add_annotation(
     xref="paper", yref="y", x=0.005, y=249,
     text="<b>🚨 AWAS ROB (250 cm)</b>", showarrow=False,
@@ -329,12 +363,11 @@ fig.update_layout(
         y=1.02, 
         xanchor="right", 
         x=1, 
-        font=dict(size=11, family="Arial")
+        font=dict(size=10, family="Arial")
     ),
     font=dict(family="Arial, Helvetica, sans-serif", color="#1E293B")
 )
 
-# Render Grafik Tanpa Modebar
 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 # =========================================================================
@@ -343,7 +376,7 @@ st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 st.divider()
 st.markdown("<h4 style='margin:0 0 4px 0; padding:0; font-size:14px; font-weight:700; color:#1E293B;'>📋 Potongan Basis Data Numerik Terfilter</h4>", unsafe_allow_html=True)
 
-kolom_tampilan = ['Datetime', 'TMA_Pasar_Ikan', 'Prediksi_Harmonik_UTIDE', 'Prediksi_Hibrida_Final']
+kolom_tampilan = ['Datetime', 'TMA_Pasar_Ikan', 'Prediksi_Harmonik_UTIDE', KOLOM_LSTM_MURNI, 'Prediksi_Hibrida_Final']
 st.dataframe(df_filtered[kolom_tampilan].reset_index(drop=True), use_container_width=True)
 
 csv_data = df_filtered[kolom_tampilan].to_csv(index=False).encode('utf-8')
