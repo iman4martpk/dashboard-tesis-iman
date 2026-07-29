@@ -267,7 +267,7 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
     fig.add_trace(go.Scatter(x=df_lstm_filtered[COL_DATETIME], y=df_lstm_filtered[COL_LSTM], mode="lines", name="Prediksi LSTM Murni (Non-Astronomis)", line=dict(color=COLOR_PALETTE["lstm"], width=2.0, dash="dashdot")))
     
     # 4. Kurva Prediksi Hibrida
-    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (UTide + LSTM)", line=dict(color=COLOR_PALETTE["hibrida"], width=3.2, dash="dash"))
+    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (UTide + LSTM)", line=dict(color=COLOR_PALETTE["hibrida"], width=3.2, dash="dash")))
     
     # 5. PLOT DATA SCRAPE REAL-TIME DI TITIK TENGAH (Jika ada data scrape dan masuk rentang grafik)
     if data_dsda and data_dsda['tma'] is not None:
