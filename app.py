@@ -88,7 +88,7 @@ PRESETS = {
     },
 }
 CUSTOM_PRESET_KEY = "🎛️ Custom Rentang Waktu (Manual)"
-DEFAULT_PRESET_INDEX = 0 # Mengubah default awal langsung ke Ringkasan Real-Time
+DEFAULT_PRESET_INDEX = 0
 
 
 # =========================================================================
@@ -185,7 +185,9 @@ class KpiResult:
 
 def compute_kpis(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> Optional[KpiResult]:
     valid_idx = df_filtered[COL_OBSERVASI].notna()
-    if valid_idx.sum() == 0: return None
+    if valid_idx.sum() == 0: 
+        return None
+        
     observasi = df_filtered.loc[valid_idx, COL_OBSERVASI]
     
     def rmse(prediksi: pd.Series) -> float:
@@ -236,9 +238,6 @@ def render_summary_box(pilihan_mode: str, data_dsda: Optional[dict]) -> None:
         unsafe_allow_html=True,
     )
 
-def render_forecast_notice() -> None:
-    st.markdown('<div class="summary-box" style="border-left-color: #d97706 !important;"><span class="summary-text" style="color: #b45309;">🔮 <b>MODE FORECASTING MASA DEPAN</b> | Grafik menampilkan kurva proyeksi jangka panjang. Metrik RMSE historis ditiadakan.</span></div>', unsafe_allow_html=True)
-
 def _metrik_badge(metrik: MetodeMetrik) -> str:
     if metrik.is_terbaik: return '<span style="color: #22c55e; font-size: 0.65rem; font-weight: bold;">🏆 AKURASI TERTINGGI</span>'
     return f'<span style="color: #ef4444; font-size: 0.65rem; font-weight: bold;">+{metrik.selisih_dari_terbaik:.1f} cm vs Terbaik</span>'
@@ -252,6 +251,13 @@ def render_kpi_cards(kpi: KpiResult) -> None:
     _render_metric_card(col2, "📉 RMSE UTIDE MURNI", f"{kpi.utide.rmse:.2f} cm {_metrik_badge(kpi.utide)}", COLOR_PALETTE["utide"])
     _render_metric_card(col3, "📊 RMSE LSTM MURNI", f"{kpi.lstm.rmse:.2f} cm {_metrik_badge(kpi.lstm)}", COLOR_PALETTE["lstm"])
     _render_metric_card(col4, "🏆 RMSE HIBRIDA", f"{kpi.hibrida.rmse:.2f} cm {_metrik_badge(kpi.hibrida)}", COLOR_PALETTE["hibrida"])
+
+def render_empty_kpi_cards() -> None:
+    col1, col2, col3, col4 = st.columns(4)
+    _render_metric_card(col1, "📈 REDUKSI EROR (vs UTide)", '<span style="color: #64748B;">No Obs Data</span>', COLOR_PALETTE["observasi"])
+    _render_metric_card(col2, "📉 RMSE UTIDE MURNI", '<span style="color: #64748B;">No Obs Data</span>', COLOR_PALETTE["observasi"])
+    _render_metric_card(col3, "📊 RMSE LSTM MURNI", '<span style="color: #64748B;">No Obs Data</span>', COLOR_PALETTE["observasi"])
+    _render_metric_card(col4, "🏆 RMSE HIBRIDA", '<span style="color: #64748B;">No Obs Data</span>', COLOR_PALETTE["observasi"])
 
 def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame, data_dsda: Optional[dict]) -> go.Figure:
     fig = go.Figure()
@@ -339,18 +345,20 @@ def main() -> None:
     df_filtered = df[mask].copy()
     df_lstm_filtered = df_lstm[mask].copy()
 
-    render_header()
-
+    # Hitung metrik KPI HANYA dari data yang sedang terfilter di grafik
     kpi = compute_kpis(df_filtered, df_lstm_filtered)
+
+    render_header()
+    render_summary_box(pilihan_mode, data_dsda)
+
+    # Tampilkan kartu metrik dinamis (Atau 'No Obs Data' jika observasi kosong)
     if kpi is not None:
-        render_summary_box(pilihan_mode, data_dsda)
         render_kpi_cards(kpi)
     else:
-        render_forecast_notice()
+        render_empty_kpi_cards()
 
     st.markdown(f"<h3 style='margin:5px 0 3px 0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>", unsafe_allow_html=True)
     
-    # Memasukkan argumen data_dsda ke grafik
     fig = build_comparison_chart(df_filtered, df_lstm_filtered, data_dsda)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     render_data_table(df_filtered, df_lstm_filtered)
