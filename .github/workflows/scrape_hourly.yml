@@ -1,0 +1,40 @@
+name: 🔄 Jalur 1 - Scrape Realtime (Tiap Jam)
+
+on:
+  schedule:
+    # Jalan otomatis setiap menit ke-25, di jam berapapun.
+    - cron: '25 * * * *'
+  
+  repository_dispatch:
+    types: [run_scrape_hourly] 
+    
+  workflow_dispatch: 
+
+jobs:
+  scrape_and_update:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v3
+        
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas requests lxml pytz
+          
+      - name: ⚙️ Eksekusi Script Scraper
+        run: python scrape_hourly.py
+        
+      - name: 📤 Commit & Push Perubahan Data
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv
+          git commit -m "🤖 Auto-update data observasi (Jalur 1)" || echo "No changes to commit"
+          git push
