@@ -275,20 +275,17 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
     # 4. Kurva Prediksi Hibrida
     fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (UTide + LSTM)", line=dict(color=COLOR_PALETTE["hibrida"], width=3.2, dash="dash")))
     
-    # 5. PLOT LABEL OBSERVASI TERAKHIR (TANPA ICON TITIK SAMA SEKALI)
+    # 5. GARIS VERTIKAL PENANDA WAKTU SEKARANG (REAL-TIME ANCHOR LINE)
     if data_dsda and data_dsda['tma'] is not None:
         waktu_sekarang_jam = datetime.now().replace(minute=0, second=0, microsecond=0)
-        tgl_format = waktu_sekarang_jam.strftime("%d %b %Y %H:%M") 
         
-        fig.add_trace(go.Scatter(
-            x=[waktu_sekarang_jam], y=[data_dsda['tma']],
-            mode="text",
-            name="Last Update",
-            text=[f"<b>Last Update - {tgl_format}</b>"], 
-            textposition="top center",
-            textfont=dict(color=COLOR_PALETTE["observasi"], size=11), 
-            showlegend=False
-        ))
+        # Plot garis vertikal batas akhir data masuk biar visualisasi tegas
+        fig.add_vline(
+            x=waktu_sekarang_jam.timestamp() * 1000, 
+            line_width=1.5, 
+            line_dash="dot", 
+            line_color=COLOR_PALETTE["observasi"]
+        )
 
     fig.add_hline(y=THRESHOLD_AWAS_ROB, line_dash="dash", line_color=COLOR_PALETTE["awas_rob"], line_width=1.5)
     fig.add_hline(y=THRESHOLD_WASPADA_ROB, line_dash="dash", line_color=COLOR_PALETTE["waspada_rob"], line_width=1.5)
@@ -362,7 +359,23 @@ def main() -> None:
     else:
         render_empty_kpi_cards()
 
-    st.markdown(f"<h3 style='margin:5px 0 3px 0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>", unsafe_allow_html=True)
+    # KONSTRUKSI TEKS TANGGAL UNTUK SUB-JUDUL DI LUAR GRAFIK
+    tgl_sub_judul = ""
+    if data_dsda and data_dsda['tma'] is not None:
+        waktu_sekarang_jam = datetime.now().replace(minute=0, second=0, microsecond=0)
+        tgl_format = waktu_sekarang_jam.strftime("%d %b %Y %H:%M")
+        tgl_sub_judul = f" &nbsp;|&nbsp; <span style='font-size:13px; color:#64748B; font-weight:normal;'>⏱️ Last Update Basis Data: <b>{tgl_format} WIB</b></span>"
+
+    # RENDERING JUDUL GRAFIK DAN KETERANGAN UPDATE SEJAJAR (BERSIH & ELEGAN)
+    st.markdown(
+        f"""
+        <div style="display: flex; align-items: baseline; margin: 8px 0 3px 0;">
+            <h3 style="margin:0; padding:0; font-size:19px; font-weight:600; color:#1E293B;">📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>
+            {tgl_sub_judul}
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
     
     fig = build_comparison_chart(df_filtered, df_lstm_filtered, data_dsda)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
