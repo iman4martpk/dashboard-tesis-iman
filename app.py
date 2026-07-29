@@ -275,17 +275,20 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
     # 4. Kurva Prediksi Hibrida
     fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (UTide + LSTM)", line=dict(color=COLOR_PALETTE["hibrida"], width=3.2, dash="dash")))
     
-    # 5. GARIS VERTIKAL PENANDA WAKTU SEKARANG (REAL-TIME ANCHOR LINE)
+    # 5. GARIS VERTIKAL DINAMIS (Hanya muncul jika waktu saat ini berada di dalam rentang data terfilter)
     if data_dsda and data_dsda['tma'] is not None:
         waktu_sekarang_jam = datetime.now().replace(minute=0, second=0, microsecond=0)
+        min_date = df_filtered[COL_DATETIME].min()
+        max_date = df_filtered[COL_DATETIME].max()
         
-        # Plot garis vertikal batas akhir data masuk biar visualisasi tegas
-        fig.add_vline(
-            x=waktu_sekarang_jam.timestamp() * 1000, 
-            line_width=1.5, 
-            line_dash="dot", 
-            line_color=COLOR_PALETTE["observasi"]
-        )
+        # Logika fleksibel: Garis bantu vertikal digambar HANYA jika masuk rentang filter waktu aktif
+        if min_date <= waktu_sekarang_jam <= max_date:
+            fig.add_vline(
+                x=waktu_sekarang_jam.timestamp() * 1000, 
+                line_width=1.5, 
+                line_dash="dot", 
+                line_color=COLOR_PALETTE["observasi"]
+            )
 
     fig.add_hline(y=THRESHOLD_AWAS_ROB, line_dash="dash", line_color=COLOR_PALETTE["awas_rob"], line_width=1.5)
     fig.add_hline(y=THRESHOLD_WASPADA_ROB, line_dash="dash", line_color=COLOR_PALETTE["waspada_rob"], line_width=1.5)
