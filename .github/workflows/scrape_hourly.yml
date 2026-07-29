@@ -12,6 +12,10 @@ jobs:
   scrape_and_update:
     runs-on: ubuntu-latest
     
+    # 🔑 Posisi permission harus sejajar di bawah runs-on (2x spasi dari kiri)
+    permissions:
+      contents: write
+    
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v3
