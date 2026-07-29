@@ -1,17 +1,38 @@
 """
 Script Retraining Otomatis Mingguan (Jalur 2) - Tesis Iman
+(Versi Auto-Install Dependencies Mandiri)
 """
+
+# =========================================================================
+# 0. AUTO INSTALL DEPENDENCIES MANDIRI (JIKA BELUM ADA DI SERVER)
+# =========================================================================
+import subprocess
+import sys
+
+def install_packages():
+    packages = ['tensorflow', 'scikit-learn', 'pandas', 'numpy']
+    for package in packages:
+        try:
+            __import__(package if package != 'scikit-learn' else 'sklearn')
+        except ImportError:
+            print(f"📦 Menginstal otomatis modul yang kurang: {package}...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+# Jalankan pengecekan instalasi sebelum impor resmi
+install_packages()
+
+# =========================================================================
+# 1. IMPOR MODUL UTAMA SETELAH AMAN
+# =========================================================================
 import os
 import pickle
 import numpy as np
 import pandas as pd
 from datetime import datetime
 
-# Mengabaikan log TensorFlow yang terlalu ramai di runner GitHub Actions
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 
-# 1. KONFIGURASI FILE & ASET MASTER TESIS
 DATA_FILE_HIBRIDA = "HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv"
 DATA_FILE_LSTM = "HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv"
 MODEL_LSTM_MURNI = "model_pasar_ikan_lstm_murni_master.keras"
@@ -22,7 +43,6 @@ LOOKBACK_WINDOW = 24
 
 print("🚀 Memulai Pipeline Retraining Mingguan Otomatis...")
 
-# 2. LOAD DATA & VALIDASI
 if not os.path.exists(DATA_FILE_HIBRIDA) or not os.path.exists(DATA_FILE_LSTM):
     print("❌ Error: File CSV basis data utama tidak ditemukan!")
     exit(1)
@@ -76,7 +96,6 @@ try:
 except Exception as e:
     print(f"⚠️ Gagal memperbarui Model Hibrida: {e}")
 
-# Simpan perubahan final kembali ke CSV master
 df_hib.to_csv(DATA_FILE_HIBRIDA, index=False)
 df_lstm.to_csv(DATA_FILE_LSTM, index=False)
 print("🎉 Pipeline Mingguan Selesai Sukses 100%!")
