@@ -111,7 +111,7 @@ def fetch_realtime_data() -> Optional[dict]:
         
         if jam_mentah and tma_mentah:
             jam = jam_mentah[0].strip()
-            teks_tma = tma_mentnt = tma_mentah[0].strip()
+            teks_tma = tma_mentah[0].strip()
             match = re.search(r'[-+]?\d+', teks_tma)
             angka_tma = float(match.group()) if match else None
             return {"jam": jam, "tma": angka_tma}
@@ -275,7 +275,7 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
     # 4. Kurva Prediksi Hibrida
     fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (UTide + LSTM)", line=dict(color=COLOR_PALETTE["hibrida"], width=3.2, dash="dash")))
     
-    # 5. GARIS VERTIKAL DINAMIS (Hanya muncul jika waktu saat ini berada di dalam rentang data terfilter)
+    # 5. GARIS VERTIKAL DINAMIS
     if data_dsda and data_dsda['tma'] is not None:
         waktu_sekarang_jam = datetime.now().replace(minute=0, second=0, microsecond=0)
         min_date = df_filtered[COL_DATETIME].min()
@@ -312,9 +312,11 @@ def render_data_table(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame)
         COL_LSTM: df_lstm_filtered[COL_LSTM].values,
         COL_HIBRIDA: df_filtered[COL_HIBRIDA],
     })
-    st.dataframe(df_tampilan.reset_index(drop=True), use_container_width=True)
+    
+    # 💎 DIUPDATE PADA TAHUN 2026: Menggunakan format lebar 'stretch' baru Streamlit
+    st.dataframe(df_tampilan.reset_index(drop=True), width='stretch')
     csv_data = df_tampilan.to_csv(index=False).encode("utf-8")
-    st.download_button(label="📥 Unduh Data Potongan Kerja Ini (.CSV)", data=csv_data, file_name="DATA_INSPEKSI_PASUT_HIBRIDA.csv", mime="text/csv", use_container_width=True)
+    st.download_button(label="📥 Unduh Data Potongan Kerja Ini (.CSV)", data=csv_data, file_name="DATA_INSPEKSI_PASUT_HIBRIDA.csv", mime="text/csv", width='stretch')
 
 
 # =========================================================================
@@ -349,19 +351,16 @@ def main() -> None:
     df_filtered = df[mask].copy()
     df_lstm_filtered = df_lstm[mask].copy()
 
-    # Hitung metrik KPI HANYA dari data yang sedang terfilter di grafik
     kpi = compute_kpis(df_filtered, df_lstm_filtered)
 
     render_header()
     render_summary_box(pilihan_mode, data_dsda)
 
-    # Tampilkan kartu metrik dinamis (Atau 'No Obs Data' jika observasi kosong)
     if kpi is not None:
         render_kpi_cards(kpi)
     else:
         render_empty_kpi_cards()
 
-    # RENDERING JUDUL GRAFIK BERSIH TANPA SUBTITLE GANDA
     st.markdown(
         f"""
         <div style="display: flex; align-items: baseline; margin: 8px 0 3px 0;">
@@ -372,7 +371,9 @@ def main() -> None:
     )
     
     fig = build_comparison_chart(df_filtered, df_lstm_filtered, data_dsda)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    
+    # 💎 DIUPDATE PADA TAHUN 2026: Menggunakan format lebar 'stretch' baru Streamlit
+    st.plotly_chart(fig, width='stretch', config={"displayModeBar": False})
     render_data_table(df_filtered, df_lstm_filtered)
 
 if __name__ == "__main__":
