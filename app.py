@@ -16,7 +16,6 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-    /* --- FIX PEMBUNGKUS KALENDER FILTER SIDEBAR --- */
     [data-baseweb="popover"] {
         transform: scale(0.95) !important;
         transform-origin: top left !important;
@@ -24,22 +23,15 @@ st.markdown("""
     [data-baseweb="popover"] > div {
         max-width: 260px !important;
     }
-
-    /* Merapatkan kontainer utama ke batas paling atas layar secara aman */
     .block-container { 
         padding-top: 3.2rem !important; 
         padding-bottom: 0rem !important; 
         max-width: 95% !important; 
     }
-    
-    /* Menghilangkan gap vertikal bawaan Streamlit antar elemen */
     [data-testid="stVerticalBlock"] > div {
         gap: 0px !important;
     }
-
     .stApp { background-color: #ffffff; }
-    
-    /* Menyelaraskan teks judul utama di tengah */
     .header-text { 
         text-align: center; 
         width: 100%; 
@@ -47,38 +39,31 @@ st.markdown("""
         margin-bottom: 0px !important;
         padding-bottom: 0px !important;
     }
-
-    /* ================= GLOBAL STANDARD FONT COUPLING ================= */
     html, body, [class*="css"] {
         font-family: Arial, Helvetica, sans-serif !important;
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
     }
-
     [data-testid="stHeader"] {
         background-color: transparent !important;
         background: transparent !important;
         z-index: 99995 !important;
     }
-
     div[data-testid="collapsedControl"] {
         background-color: #0B3D4C !important;
         border-radius: 8px !important;
         padding: 6px !important;
         box-shadow: 0 4px 12px rgba(11, 61, 76, 0.3) !important;
     }
-    
     button[data-testid="stSidebarCollapseButton"] {
         background-color: #0B3D4C !important;
         border-radius: 8px !important;
     }
-
     div[data-testid="collapsedControl"] svg,
     button[data-testid="stSidebarCollapseButton"] svg {
         fill: #F8FAFC !important;
         color: #F8FAFC !important;
     }
-
     div[data-testid="stMetric"] {
         background-color: #ffffff !important; 
         border: 1px solid #e2e8f0 !important;
@@ -91,7 +76,6 @@ st.markdown("""
         flex-direction: column !important;
         justify-content: center !important;
     }
-    
     div[data-testid="stMetricLabel"] { 
         color: #64748b !important; 
         font-weight: 600 !important; 
@@ -99,17 +83,14 @@ st.markdown("""
         margin-bottom: -4px !important; 
         white-space: nowrap !important;
     }
-
     [data-testid="stMetricValue"] { 
         font-size: 14px !important; 
         font-weight: 700 !important; 
         color: #0f172a !important; 
         white-space: nowrap !important;
     }
-
     div[data-testid="stMetricDelta"] { display: none !important; }
     div[data-testid="column"] { padding: 0 4px !important; }
-
     .summary-box {
         background-color: #f1f5f9 !important; 
         padding: 6px 12px !important; 
@@ -120,7 +101,6 @@ st.markdown("""
         text-align: center !important;
     }
     .summary-text { font-family: Arial, Helvetica, sans-serif !important; font-weight: 600; font-size: 0.82rem; color: #1e293b; }
-    
     @media (max-width: 767px) {
         .block-container { padding-top: 3.4rem !important; }
         .header-text h2 { font-size: 1.1rem !important; margin-top: 10px !important; }
@@ -137,11 +117,8 @@ KOLOM_LSTM_MURNI = 'Prediksi_LSTM_Murni'
 
 @st.cache_data
 def load_data():
-    # Load File Utama (Hibrida & UTide)
     df_hibrida = pd.read_csv("HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv", parse_dates=['Datetime'])
-    # Load File Pendukung (LSTM Murni) secara terpisah
     df_lstm = pd.read_csv("HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv", parse_dates=['Datetime'])
-    
     return df_hibrida, df_lstm
 
 try:
@@ -185,21 +162,17 @@ PRESETS = {
 
 pilihan_mode = st.sidebar.selectbox("Pilih Mode Analisis / Studi Kasus:", list(PRESETS.keys()), index=1)
 
-# Logika Filter Tanggal (Diterapkan ke 2 dataframe sekaligus)
 if pilihan_mode == "🎛️ Custom Rentang Waktu (Manual)":
     min_date = df['Datetime'].min().date()
     max_date = df['Datetime'].max().date()
     start_date = st.sidebar.date_input("Tanggal Mulai", min_date, min_value=min_date, max_value=max_date)
     end_date = st.sidebar.date_input("Tanggal Selesai", max_date, min_value=min_date, max_value=max_date)
-    
     mask = (df['Datetime'].dt.date >= start_date) & (df['Datetime'].dt.date <= end_date)
 else:
     tgl_start = pd.to_datetime(PRESETS[pilihan_mode]['start'])
     tgl_end = pd.to_datetime(PRESETS[pilihan_mode]['end'])
-    
     mask = (df['Datetime'] >= tgl_start) & (df['Datetime'] <= tgl_end)
 
-# Eksekusi filter secara independen
 df_filtered = df[mask].copy()
 df_lstm_filtered = df_lstm[mask].copy()
 
@@ -217,93 +190,173 @@ st.markdown("""
 if df_filtered['TMA_Pasar_Ikan'].notna().sum() > 0:
     valid_idx = df_filtered['TMA_Pasar_Ikan'].notna()
     
-    # Hitung RMSE
+    # Menghitung metrik RMSE masing-masing metode
     rmse_utide_curr = np.sqrt(np.mean((df_filtered.loc[valid_idx, 'TMA_Pasar_Ikan'] - df_filtered.loc[valid_idx, 'Prediksi_Harmonik_UTIDE']) ** 2))
     rmse_lstm_curr = np.sqrt(np.mean((df_filtered.loc[valid_idx, 'TMA_Pasar_Ikan'] - df_lstm_filtered.loc[valid_idx, KOLOM_LSTM_MURNI]) ** 2))
-    rmse_hibOke bre, gw paham banget kegelisahan lu. Betul, di level tesis, akurasi istilah itu penting banget. Dosen penguji biasanya cukup *strict* soal definisi "Model". UTide itu pada dasarnya adalah *Harmonic Analysis* (analisis harmonik pasut), yang secara matematis memang sebuah model (model empiris/analitik), tapi sering dibedakan dengan "Model Prediksi" berbasis *Machine Learning* (kaya LSTM, SVR, dll).
+    rmse_hib_curr = np.sqrt(np.mean((df_filtered.loc[valid_idx, 'TMA_Pasar_Ikan'] - df_filtered.loc[valid_idx, 'Prediksi_Hibrida_Final']) ** 2))
+    
+    peningkatan_curr = ((rmse_utide_curr - rmse_hib_curr) / rmse_utide_curr) * 100 if rmse_utide_curr > 0 else 0
+    
+    # ---------------- LOGIKA DINAMIS AKURASI TERTINGGI ----------------
+    min_rmse = min(rmse_utide_curr, rmse_lstm_curr, rmse_hib_curr)
+    badge_best = '<span style="color: #22c55e; font-size: 0.65rem; font-weight: bold;">🏆 AKURASI TERTINGGI</span>'
+    
+    if rmse_utide_curr == min_rmse:
+        badge_utide = badge_best
+    else:
+        badge_utide = f'<span style="color: #ef4444; font-size: 0.65rem; font-weight: bold;">+{(rmse_utide_curr - min_rmse):.1f} cm vs Terbaik</span>'
+        
+    if rmse_lstm_curr == min_rmse:
+        badge_lstm = badge_best
+    else:
+        badge_lstm = f'<span style="color: #ef4444; font-size: 0.65rem; font-weight: bold;">+{(rmse_lstm_curr - min_rmse):.1f} cm vs Terbaik</span>'
+        
+    if rmse_hib_curr == min_rmse:
+        badge_hib = badge_best
+    else:
+        badge_hib = f'<span style="color: #ef4444; font-size: 0.65rem; font-weight: bold;">+{(rmse_hib_curr - min_rmse):.1f} cm vs Terbaik</span>'
+    # ------------------------------------------------------------------
 
-Biar aman dan secara *scientific* lebih valid, mending kita hindari kata "Best Model" kalau lu membandingkan metode yang beda *nature*-nya.
+    st.markdown(f"""
+        <div class="summary-box">
+            <span class="summary-text">
+                📍 <b>Stasiun:</b> Pasar Ikan, Jakarta | 🛡️ <b>Fokus:</b> Koreksi Residu Non-Astronomis | 🔎 <b>Studi:</b> {PRESETS[pilihan_mode]['desc']}
+            </span>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    m1, m2, m3, m4 = st.columns(4)
+    
+    m1.markdown(f"""
+        <div data-testid="stMetric" style="border-left-color: #22c55e !important;">
+            <label data-testid="stMetricLabel">📈 REDUKSI EROR (vs UTide)</label>
+            <div data-testid="stMetricValue">
+                {peningkatan_curr:.2f} % <span style="color: #22c55e; font-size: 0.68rem; font-weight: bold;">▲ OPTIMAL</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    m2.markdown(f"""
+        <div data-testid="stMetric" style="border-left-color: #06B6D4 !important;">
+            <label data-testid="stMetricLabel">📉 RMSE UTIDE MURNI</label>
+            <div data-testid="stMetricValue">
+                {rmse_utide_curr:.2f} cm {badge_utide}
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    m3.markdown(f"""
+        <div data-testid="stMetric" style="border-left-color: #F59E0B !important;">
+            <label data-testid="stMetricLabel">📊 RMSE LSTM MURNI</label>
+            <div data-testid="stMetricValue">
+                {rmse_lstm_curr:.2f} cm {badge_lstm}
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    m4.markdown(f"""
+        <div data-testid="stMetric" style="border-left-color: #4F46E5 !important;">
+            <label data-testid="stMetricLabel">🏆 RMSE HIBRIDA</label>
+            <div data-testid="stMetricValue">
+                {rmse_hib_curr:.2f} cm {badge_hib}
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown(f"""
+        <div class="summary-box" style="border-left-color: #d97706 !important;">
+            <span class="summary-text" style="color: #b45309;">
+                🔮 <b>MODE FORECASTING MASA DEPAN</b> | Grafik menampilkan kurva proyeksi. Metrik RMSE tidak dihitung karena data lapangan belum rilis.
+            </span>
+        </div>
+    """, unsafe_allow_html=True)
 
-## 1. Saran Istilah Scientific untuk Tesis
+# =========================================================================
+# 📈 5. VISUALISASI GRAFIK TIMESERIES PLOTLY INTERAKTIF
+# =========================================================================
+st.markdown(f"<h3 style='margin:5px 0 3px 0; padding:0; font-size:19px; font-weight:600; color:#1E293B;'>📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>", unsafe_allow_html=True)
 
-Berikut beberapa alternatif yang lebih *thesis-material* dan aman dipakai untuk membandingkan UTide dengan metode lain:
+fig = go.Figure()
 
-*   **Best Prediction Method / Metode Prediksi Terbaik:** Ini paling aman dan universal. Baik UTide maupun *Machine Learning* sama-sama berfungsi sebagai "Metode" untuk menghasilkan "Prediksi".
-*   **Most Accurate Estimation / Estimasi Paling Akurat:** Sangat cocok kalau konteksnya membandingkan nilai selisih (error) terhadap data real-time.
-*   **Optimal Forecasting Approach / Pendekatan Peramalan Optimal:** Terdengar sangat akademis. Cocok kalau tesis lu fokus pada sistem *forecasting* pasut ke depan.
-*   **Superior Predictive Performance / Kinerja Prediksi Superior:** Biasanya dipakai di judul tabel evaluasi atau legenda grafik.
+if df_filtered['TMA_Pasar_Ikan'].notna().sum() > 0:
+    fig.add_trace(go.Scatter(
+        x=df_filtered['Datetime'], y=df_filtered['TMA_Pasar_Ikan'],
+        mode='lines', name='Observasi Stasiun (TMA Aktual)',
+        line=dict(color='#64748B', width=2.5)
+    ))
 
-**Rekomendasi Gw:** Pakai **"Metode Prediksi Terbaik" (Best Prediction Method)**. Simpel, lugas, dan secara keilmuan mencakup analisis harmonik maupun *machine learning*.
+fig.add_trace(go.Scatter(
+    x=df_filtered['Datetime'], y=df_filtered['Prediksi_Harmonik_UTIDE'],
+    mode='lines', name='Prediksi UTide Murni (Astronomis)',
+    line=dict(color='#06B6D4', width=2.0, dash='dot')
+))
 
----
+fig.add_trace(go.Scatter(
+    x=df_lstm_filtered['Datetime'], y=df_lstm_filtered[KOLOM_LSTM_MURNI],
+    mode='lines', name='Prediksi LSTM Murni (Non-Astronomis)',
+    line=dict(color='#F59E0B', width=2.0, dash='dashdot')
+))
 
-## 2. Implementasi Kode Dinamis (Python)
+fig.add_trace(go.Scatter(
+    x=df_filtered['Datetime'], y=df_filtered['Prediksi_Hibrida_Final'],
+    mode='lines', name='Prediksi Hibrida (UTide + LSTM)',
+    line=dict(color='#4F46E5', width=3.2, dash='dash')
+))
 
-Biar tulisannya bisa dinamis ngikutin nilai selisih (error) terkecil terhadap data real-time, kita harus bikin logikanya:
-1. Hitung error (misal pakai *Root Mean Square Error* / RMSE atau *Mean Absolute Error* / MAE).
-2. Cari nilai error terkecil.
-3. Ambil nama metode yang menang, lalu masukin ke dalam teks/plot secara otomatis.
+fig.add_hline(y=250, line_dash="dash", line_color="#DC2626", line_width=1.5)
+fig.add_hline(y=230, line_dash="dash", line_color="#D97706", line_width=1.5)
 
-Ini contoh lengkap pakai Python (asumsi lu pakai Pandas dan Numpy, yang standar banget buat tesis data):
+fig.add_annotation(
+    xref="paper", yref="y", x=0.005, y=249,
+    text="<b>🚨 AWAS ROB (250 cm)</b>", showarrow=False,
+    xanchor="left", yanchor="top", font=dict(color='#DC2626', size=11, family="Arial")
+)
+fig.add_annotation(
+    xref="paper", yref="y", x=0.005, y=229,
+    text="<b>⚠️ WASPADA ROB (230 cm)</b>", showarrow=False,
+    xanchor="left", yanchor="top", font=dict(color='#D97706', size=11, family="Arial")
+)
 
-```python
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+fig.update_layout(
+    height=410, 
+    template="plotly_white", 
+    margin=dict(l=10, r=10, t=25, b=10), 
+    hovermode="x unified",
+    hoverlabel=dict(bgcolor="white", font_size=11, font_family="Arial"),
+    xaxis=dict(tickfont=dict(size=10, family="Arial")),
+    yaxis=dict(
+        title=dict(text="Tinggi Air (cm)", font=dict(size=11, family="Arial")), 
+        tickfont=dict(size=10, family="Arial")
+    ),
+    legend=dict(
+        orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, family="Arial")
+    ),
+    font=dict(family="Arial, Helvetica, sans-serif", color="#1E293B")
+)
 
-# 1. BIKIN DATA DUMMY (Anggap aja ini DataFrame lu)
-# Kolom: Waktu, Data_Realtime, Prediksi_UTide, Prediksi_LSTM, Prediksi_SVR
-data = {
-    'Waktu': pd.date_range(start='2026-07-01', periods=5, freq='H'),
-    'Realtime': [1.20, 1.45, 1.60, 1.55, 1.30],
-    'UTide':    [1.22, 1.43, 1.58, 1.57, 1.28], # Selisih dikit
-    'LSTM':     [1.15, 1.40, 1.65, 1.50, 1.35], # Selisih lumayan
-    'SVR':      [1.25, 1.50, 1.55, 1.60, 1.25]  # Selisih lumayan
-}
-df = pd.DataFrame(data)
+st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-# 2. DEFINISIKAN METODE YANG MAU DIBANDINGKAN
-# Key: Nama kolom di DataFrame, Value: Nama Keren buat di Tesis/Plot
-metode_dict = {
-    'UTide': 'Harmonic Analysis (UTide)',
-    'LSTM': 'Deep Learning (LSTM)',
-    'SVR': 'Support Vector Regression (SVR)'
-}
+# =========================================================================
+# 📋 6. INTEGRASI DATA TABULAR & DOWNLOAD CONTROLLER
+# =========================================================================
+st.divider()
+st.markdown("<h4 style='margin:0 0 4px 0; padding:0; font-size:14px; font-weight:700; color:#1E293B;'>📋 Potongan Basis Data Numerik Terfilter</h4>", unsafe_allow_html=True)
 
-# 3. HITUNG SELISIH TERBAIK (Pakai MAE atau RMSE)
-# Kita pakai MAE (Mean Absolute Error) sebagai contoh selisih rata-rata
-error_results = {}
+df_tampilan = pd.DataFrame({
+    'Datetime': df_filtered['Datetime'],
+    'TMA_Pasar_Ikan': df_filtered['TMA_Pasar_Ikan'],
+    'Prediksi_Harmonik_UTIDE': df_filtered['Prediksi_Harmonik_UTIDE'],
+    KOLOM_LSTM_MURNI: df_lstm_filtered[KOLOM_LSTM_MURNI].values,
+    'Prediksi_Hibrida_Final': df_filtered['Prediksi_Hibrida_Final']
+})
 
-for metode in metode_dict.keys():
-    # Menghitung absolute error: |Realtime - Prediksi|
-    abs_error = np.abs(df['Realtime'] - df[metode])
-    mae = abs_error.mean()
-    error_results[metode] = mae
+st.dataframe(df_tampilan.reset_index(drop=True), use_container_width=True)
 
-# 4. CARI METODE DENGAN ERROR TERKECIL
-best_method_key = min(error_results, key=error_results.get)
-best_method_name = metode_dict[best_method_key]
-best_error_value = error_results[best_method_key]
-
-# 5. BIKIN TEKS DINAMISNYA
-# Menggunakan istilah "Best Prediction Method"
-dynamic_title = f"Evaluasi Pasang Surut: {best_method_name} sebagai Metode Prediksi Terbaik\n(MAE: {best_error_value:.3f} m)"
-
-print("=== HASIL EVALUASI ===")
-print(f"Metode Terbaik: {best_method_name}")
-print(f"Teks Dinamis untuk Plot: \n{dynamic_title}\n")
-
-# 6. CONTOH APLIKASI DI PLOT (Opsional, kalau lu mau nampilin grafiknya)
-plt.figure(figsize=(10, 5))
-plt.plot(df['Waktu'], df['Realtime'], label='Data Real-time (Bata)', color='black', linewidth=2, marker='o')
-
-# Plot metode yang menang aja (atau bisa plot semua)
-plt.plot(df['Waktu'], df[best_method_key], label=f'Prediksi: {best_method_name}', color='blue', linestyle='--')
-
-plt.title(dynamic_title, fontsize=12, fontweight='bold')
-plt.xlabel('Waktu')
-plt.ylabel('Elevasi (m)')
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-# plt.show() # Uncomment ini buat nampilin plotnya di lokal lu
+csv_data = df_tampilan.to_csv(index=False).encode('utf-8')
+st.download_button(
+    label="📥 Unduh Data Potongan Kerja Ini (.CSV)",
+    data=csv_data,
+    file_name=f"DATA_INSPEKSI_PASUT_HIBRIDA.csv",
+    mime="text/csv",
+    use_container_width=True
+)
