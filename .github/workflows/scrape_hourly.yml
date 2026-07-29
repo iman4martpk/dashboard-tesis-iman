@@ -2,23 +2,25 @@ name: 🔄 Jalur 1 - Scrape Realtime (Tiap Jam via GAS)
 
 on:
   repository_dispatch:
+    # 🎯 Menangkap sinyal event_type "run_scrape_hourly" yang ditembak oleh GAS
     types: [run_scrape_hourly] 
     
   workflow_dispatch: 
+    # 🛠️ Memunculkan tombol manual "Run workflow" di tab Actions buat test drive kapan saja
 
 jobs:
   scrape_and_update:
     runs-on: ubuntu-latest
     
+    # 🔑 Membuka izin agar robot bisa menulis/push data ke repository
     permissions:
       contents: write
     
     steps:
-      # 🚀 Upgrade ke v4 biar gak kena warning deprecation Node.js
+      # 🚀 Menggunakan versi terbaru agar bebas warning Node.js deprecation
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
         
-      # 🚀 Upgrade ke v5 biar pakai Node.js runner terbaru
       - name: 🐍 Set up Python
         uses: actions/setup-python@v5
         with:
@@ -37,5 +39,11 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv
+          
+          # Jika tidak ada perubahan data jam tersebut, script tidak akan error dan lanjut jalan
           git commit -m "🤖 Auto-update data observasi via GAS (Jalur 1)" || echo "Tidak ada perubahan data untuk dicommit."
+          
+          # 🛡️ PENGAMAN UTAMA: Ambil update terbaru di GitHub (jika ada) sebelum ditimpa push baru
+          git pull --rebase origin main
+          
           git push
