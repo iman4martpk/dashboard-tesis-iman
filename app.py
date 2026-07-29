@@ -111,7 +111,7 @@ def fetch_realtime_data() -> Optional[dict]:
         
         if jam_mentah and tma_mentah:
             jam = jam_mentah[0].strip()
-            teks_tma = tma_mentah[0].strip()
+            teks_tma = tma_mentnt = tma_mentah[0].strip()
             match = re.search(r'[-+]?\d+', teks_tma)
             angka_tma = float(match.group()) if match else None
             return {"jam": jam, "tma": angka_tma}
@@ -281,7 +281,6 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
         min_date = df_filtered[COL_DATETIME].min()
         max_date = df_filtered[COL_DATETIME].max()
         
-        # Logika fleksibel: Garis bantu vertikal digambar HANYA jika masuk rentang filter waktu aktif
         if min_date <= waktu_sekarang_jam <= max_date:
             fig.add_vline(
                 x=waktu_sekarang_jam.timestamp() * 1000, 
@@ -362,19 +361,11 @@ def main() -> None:
     else:
         render_empty_kpi_cards()
 
-    # KONSTRUKSI TEKS TANGGAL UNTUK SUB-JUDUL DI LUAR GRAFIK
-    tgl_sub_judul = ""
-    if data_dsda and data_dsda['tma'] is not None:
-        waktu_sekarang_jam = datetime.now().replace(minute=0, second=0, microsecond=0)
-        tgl_format = waktu_sekarang_jam.strftime("%d %b %Y %H:%M")
-        tgl_sub_judul = f" &nbsp;|&nbsp; <span style='font-size:13px; color:#64748B; font-weight:normal;'>⏱️ Last Update Basis Data: <b>{tgl_format} WIB</b></span>"
-
-    # RENDERING JUDUL GRAFIK DAN KETERANGAN UPDATE SEJAJAR (BERSIH & ELEGAN)
+    # RENDERING JUDUL GRAFIK BERSIH TANPA SUBTITLE GANDA
     st.markdown(
         f"""
         <div style="display: flex; align-items: baseline; margin: 8px 0 3px 0;">
             <h3 style="margin:0; padding:0; font-size:19px; font-weight:600; color:#1E293B;">📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>
-            {tgl_sub_judul}
         </div>
         """, 
         unsafe_allow_html=True
