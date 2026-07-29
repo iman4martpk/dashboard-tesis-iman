@@ -275,14 +275,19 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
     # 4. Kurva Prediksi Hibrida
     fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (UTide + LSTM)", line=dict(color=COLOR_PALETTE["hibrida"], width=3.2, dash="dash")))
     
-    # 5. PLOT DATA SCRAPE REAL-TIME DI TITIK TENGAH (Jika ada data scrape dan masuk rentang grafik)
+    # 5. PLOT LABEL OBSERVASI TERAKHIR (TANPA ICON TITIK SAMA SEKALI)
     if data_dsda and data_dsda['tma'] is not None:
         waktu_sekarang_jam = datetime.now().replace(minute=0, second=0, microsecond=0)
+        tgl_format = waktu_sekarang_jam.strftime("%d %b %Y %H:%M") 
+        
         fig.add_trace(go.Scatter(
             x=[waktu_sekarang_jam], y=[data_dsda['tma']],
-            mode="markers+text", name="📍 Posisi Scrape Saat Ini",
-            text=[f"Scrape: {data_dsda['tma']} cm"], textposition="top center",
-            marker=dict(color='#DC2626', size=12, symbol="diamond", line=dict(color="white", width=2))
+            mode="text",
+            name="Last Update",
+            text=[f"<b>Last Update - {tgl_format}</b>"], 
+            textposition="top center",
+            textfont=dict(color=COLOR_PALETTE["observasi"], size=11), 
+            showlegend=False
         ))
 
     fig.add_hline(y=THRESHOLD_AWAS_ROB, line_dash="dash", line_color=COLOR_PALETTE["awas_rob"], line_width=1.5)
