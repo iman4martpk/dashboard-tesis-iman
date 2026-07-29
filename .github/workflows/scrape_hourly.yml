@@ -1,14 +1,12 @@
-name: 🔄 Jalur 1 - Scrape Realtime (Tiap Jam)
+name: 🔄 Jalur 1 - Scrape Realtime (Tiap Jam via GAS)
 
 on:
-  schedule:
-    # Jalan otomatis setiap menit ke-25, di jam berapapun.
-    - cron: '25 * * * *'
-  
   repository_dispatch:
+    # 🎯 Menangkap sinyal event_type "run_scrape_hourly" yang ditembak oleh GAS
     types: [run_scrape_hourly] 
     
   workflow_dispatch: 
+    # 🛠️ Tetap memunculkan tombol manual "Run workflow" di tab Actions buat test drive
 
 jobs:
   scrape_and_update:
@@ -36,5 +34,6 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv
-          git commit -m "🤖 Auto-update data observasi (Jalur 1)" || echo "No changes to commit"
+          # Logika aman: jika data jam tersebut sudah ada/sama, script tidak akan error dan langsung skip
+          git commit -m "🤖 Auto-update data observasi via GAS (Jalur 1)" || echo "Tidak ada perubahan data untuk dicommit."
           git push
