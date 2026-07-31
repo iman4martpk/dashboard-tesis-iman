@@ -30,11 +30,11 @@ jobs:
       - name: 📦 Install Dependencies Scraper
         run: |
           python -m pip install --upgrade pip
-          pip install pandas requests beautifulsoup4 lxml
+          # Library pytz sudah ditambahkan di bawah ini untuk konversi zona waktu
+          pip install pandas requests beautifulsoup4 lxml pytz
           
       - name: 🌐 Eksekusi Script Scraper TMA
         run: |
-          # Pastikan nama file .py di bawah ini sesuai dengan nama script scraper lu ya!
           python scrape_hourly.py
         
       - name: 📤 Commit & Push Hasil Scrape Observasi Terbaru
