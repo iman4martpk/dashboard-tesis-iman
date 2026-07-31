@@ -288,7 +288,7 @@ def compute_kpis(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> O
 
     rmse_utide = rmse(df_filtered.loc[valid_idx, COL_UTIDE])
     rmse_lstm = rmse(df_lstm_filtered.loc[valid_idx, COL_LSTM])
-    rmse_hibrida = rmse(df_filtered.loc[valid_idx, COL_HIBRida])
+    rmse_hibrida = rmse(df_filtered.loc[valid_idx, COL_HIBRIDA])
 
     reduksi_eror = ((rmse_utide - rmse_hibrida) / rmse_utide) * 100 if rmse_utide > 0 else 0.0
     min_rmse = min(rmse_utide, rmse_lstm, rmse_hibrida)
