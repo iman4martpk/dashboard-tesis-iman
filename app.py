@@ -143,7 +143,6 @@ def _extract_pasar_ikan_reading(tree: html.HtmlElement) -> Optional[dict]:
 
     return {"jam": jam, "tma": angka_tma}
 
-
 @st.cache_data(ttl=600)
 def fetch_realtime_data() -> Optional[dict]:
     url = "https://bpbd.jakarta.go.id/waterlevel"
@@ -172,18 +171,18 @@ def inject_custom_css() -> None:
         [data-testid="stMetricValue"] {{ font-size: 14px !important; font-weight: 700 !important; color: #0f172a !important; }}
         .summary-box {{ background-color: #f1f5f9 !important; padding: 6px 12px !important; border-radius: 8px !important; margin-top: 4px !important; margin-bottom: 8px !important; border-left: 5px solid {COLOR_PALETTE['primary']} !important; text-align: center !important; }}
         .summary-text {{ font-family: Arial, Helvetica, sans-serif !important; font-weight: 600; font-size: 0.82rem; color: #1e293b; }}
+        /* Styling untuk Evaluasi Box */
+        .eval-box {{ background-color: #f8fafc; padding: 15px; border-radius: 8px; border-left: 5px solid {COLOR_PALETTE['primary']}; margin-bottom: 15px; }}
         </style>
         """,
         unsafe_allow_html=True,
     )
-
 
 def _parse_datetime_column(series: pd.Series) -> pd.Series:
     parsed = pd.to_datetime(series, format="mixed", dayfirst=False, errors="coerce")
     if parsed.dt.tz is not None:
         parsed = parsed.dt.tz_localize(None)
     return parsed
-
 
 def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     df_hibrida = pd.read_csv(DATA_FILE_HIBRIDA)
@@ -206,9 +205,7 @@ def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
         df_hibrida = df_hibrida.drop(columns=[COL_OBSERVASI])
 
     df_hibrida = pd.merge(df_hibrida, df_obs[[COL_DATETIME, COL_OBSERVASI]], on=COL_DATETIME, how="left")
-
     return df_hibrida, df_lstm
-
 
 def filter_by_preset(df: pd.DataFrame, preset_name: str, custom_start=None, custom_end=None) -> pd.Series:
     if preset_name == CUSTOM_PRESET_KEY:
@@ -331,7 +328,7 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
 
 def render_data_table(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> None:
     st.divider()
-    st.markdown("<h4 style='margin:0 0 4px 0; padding:0; font-size:14px; font-weight:700; color:#1E293B;'>📋 Potongan Basis Data Numerik Terfilter</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='margin:0 0 10px 0; padding:0; font-size:16px; font-weight:700; color:#1E293B;'>📋 Data Numerik Mentah (Tabular)</h4>", unsafe_allow_html=True)
     df_tampilan = pd.DataFrame({
         COL_DATETIME: df_filtered[COL_DATETIME],
         COL_OBSERVASI: df_filtered[COL_OBSERVASI],
@@ -339,9 +336,11 @@ def render_data_table(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame)
         COL_LSTM: df_lstm_filtered[COL_LSTM].values,
         COL_HIBRIDA: df_filtered[COL_HIBRIDA],
     })
-    st.dataframe(df_tampilan.reset_index(drop=True), width="stretch")
+    
+    st.dataframe(df_tampilan.reset_index(drop=True), width="stretch", hide_index=True)
+    
     csv_data = df_tampilan.to_csv(index=False).encode("utf-8")
-    st.download_button(label="📥 Unduh Data (.CSV)", data=csv_data, file_name="DATA_INSPEKSI_PASUT.csv", mime="text/csv")
+    st.download_button(label="📥 Unduh Data Tabular Ini (.CSV)", data=csv_data, file_name="DATA_INSPEKSI_PASUT.csv", mime="text/csv")
 
 
 # =========================================================================
@@ -349,51 +348,63 @@ def render_data_table(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame)
 # =========================================================================
 def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame, df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> None:
     st.divider()
-    st.markdown("<h3 style='color:#1E293B; font-size: 18px; margin-bottom: 0px;'>🔬 Analisis Kinerja Model (Evaluasi Tesis)</h3>", unsafe_allow_html=True)
     
-    col1, col2 = st.columns([1, 2.5])
+    # Banner Header Profesional
+    st.markdown("""
+        <div class="eval-box">
+            <h3 style='color:#1E293B; font-size: 18px; margin: 0px;'>🔬 Analisis Kinerja Model (Evaluasi Tesis)</h3>
+            <p style='color:#64748b; font-size: 13px; margin: 5px 0 0 0;'>Modul perhitungan metrik akurasi (Akurasi, RMSE, MAE, Korelasi Pearson) untuk validasi performa prediksi.</p>
+        </div>
+    """, unsafe_allow_html=True)
     
-    with col1:
-        st.markdown("**Cakupan Analisis Data:**")
-        scope = st.radio(
-            "Pilih Mode Rentang:",
-            ["Sesuai Tampilan Grafik", "Rekap Bulanan", "Rentang Kustom"],
-            label_visibility="collapsed"
-        )
+    # Selector Horizontal (Lebih rapi dan hemat tempat)
+    scope = st.radio(
+        "Pilih Cakupan Analisis Data:",
+        ["Sesuai Tampilan Grafik", "Rekap Bulanan", "Rentang Kustom"],
+        horizontal=True
+    )
     
     # Setup data berdasarkan pilihan user
     eval_df = df_filtered.copy()
     eval_lstm = df_lstm_filtered.copy()
     
-    with col2:
-        if scope == "Rekap Bulanan":
-            # Ekstrak bulan-tahun yang tersedia
-            df_master['MonthYear'] = df_master[COL_DATETIME].dt.to_period('M')
-            months = df_master['MonthYear'].dropna().unique()
-            selected_month = st.selectbox("Pilih Bulan Evaluasi:", sorted(months, reverse=True), format_func=lambda x: x.strftime('%B %Y'))
+    if scope == "Rekap Bulanan":
+        df_master['MonthYear'] = df_master[COL_DATETIME].dt.to_period('M')
+        months = sorted(df_master['MonthYear'].dropna().unique(), reverse=True)
+        
+        # Logika dinamis: Default cari bulan lalu (bulan berjalan - 1)
+        last_month_period = pd.Period(datetime.now(), 'M') - 1
+        default_idx = months.index(last_month_period) if last_month_period in months else 0
+        
+        col_month, _ = st.columns([1, 2])
+        with col_month:
+            selected_month = st.selectbox("📅 Pilih Bulan Evaluasi:", months, index=default_idx, format_func=lambda x: x.strftime('%B %Y'))
+        
+        mask_month = df_master['MonthYear'] == selected_month
+        eval_df = df_master[mask_month].copy()
+        eval_lstm = df_lstm_master[mask_month].copy()
+        
+    elif scope == "Rentang Kustom":
+        min_date = df_master[COL_DATETIME].min().date()
+        max_date = df_master[COL_DATETIME].max().date()
+        
+        col_date, _ = st.columns([1.5, 1.5])
+        with col_date:
+            custom_dates = st.date_input("📅 Pilih Rentang Tanggal:", [min_date, max_date], min_value=min_date, max_value=max_date)
             
-            mask_month = df_master['MonthYear'] == selected_month
-            eval_df = df_master[mask_month].copy()
-            eval_lstm = df_lstm_master[mask_month].copy()
-            
-        elif scope == "Rentang Kustom":
-            min_date = df_master[COL_DATETIME].min().date()
-            max_date = df_master[COL_DATETIME].max().date()
-            custom_dates = st.date_input("Pilih Rentang Tanggal:", [min_date, max_date], min_value=min_date, max_value=max_date)
-            
-            if len(custom_dates) == 2:
-                c_start, c_end = custom_dates
-                mask_custom = (df_master[COL_DATETIME].dt.date >= c_start) & (df_master[COL_DATETIME].dt.date <= c_end)
-                eval_df = df_master[mask_custom].copy()
-                eval_lstm = df_lstm_master[mask_custom].copy()
-            else:
-                st.info("⚠️ Silakan pilih tanggal akhir untuk memproses analisis.")
-                return
+        if len(custom_dates) == 2:
+            c_start, c_end = custom_dates
+            mask_custom = (df_master[COL_DATETIME].dt.date >= c_start) & (df_master[COL_DATETIME].dt.date <= c_end)
+            eval_df = df_master[mask_custom].copy()
+            eval_lstm = df_lstm_master[mask_custom].copy()
+        else:
+            st.info("⚠️ Silakan pilih tanggal akhir untuk memproses analisis.")
+            return
     
     # ---------------- MENGHITUNG METRIK ----------------
     valid_idx = eval_df[COL_OBSERVASI].notna()
     if valid_idx.sum() < 2:
-        st.warning("⚠️ Data observasi tidak cukup untuk menghitung metrik pada rentang waktu ini.")
+        st.warning("⚠️ Data observasi tidak mencukupi untuk dihitung metrik akurasinya pada rentang waktu ini.")
         return
 
     obs = eval_df.loc[valid_idx, COL_OBSERVASI]
@@ -405,43 +416,50 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame
         rmse = np.sqrt(np.mean((obs - pred)**2))
         mae = np.mean(np.abs(obs - pred))
         corr = obs.corr(pred)
-        return rmse, mae, corr
+        
+        # Akurasi (%) berbasis MAPE (100% - Mean Absolute Percentage Error)
+        safe_obs = np.where(obs == 0, 1e-6, obs) # Hindari error division by zero
+        mape = np.mean(np.abs((obs - pred) / safe_obs)) * 100
+        akurasi = max(0.0, 100.0 - mape)
+        
+        return rmse, mae, corr, akurasi
 
-    rmse_u, mae_u, corr_u = calc_metrics(utide)
-    rmse_l, mae_l, corr_l = calc_metrics(lstm)
-    rmse_h, mae_h, corr_h = calc_metrics(hibrida)
+    rmse_u, mae_u, corr_u, acc_u = calc_metrics(utide)
+    rmse_l, mae_l, corr_l, acc_l = calc_metrics(lstm)
+    rmse_h, mae_h, corr_h, acc_h = calc_metrics(hibrida)
 
-    # ---------------- BIKIN TABEL ----------------
+    # ---------------- BIKIN TABEL METRIK ----------------
     df_metrics = pd.DataFrame({
         "Metode Prediksi": ["Harmonik (UTide)", "LSTM Murni", "Hibrida (UTide + LSTM)"],
+        "Akurasi (%) ↑": [acc_u, acc_l, acc_h],
         "RMSE (cm) ↓": [rmse_u, rmse_l, rmse_h],
         "MAE (cm) ↓": [mae_u, mae_l, mae_h],
         "Korelasi (r) ↑": [corr_u, corr_l, corr_h]
     })
 
-    # Tampilkan Kesimpulan Singkat
     best_rmse = df_metrics["RMSE (cm) ↓"].min()
     best_method = df_metrics.loc[df_metrics["RMSE (cm) ↓"] == best_rmse, "Metode Prediksi"].values[0]
     impr_utide = ((rmse_u - rmse_h) / rmse_u) * 100 if rmse_u else 0
     
-    st.markdown(f"*(Total sampel divalidasi: **{len(obs)} jam observasi**)*")
+    st.markdown(f"*(Data divalidasi berdasarkan sampel **{len(obs)} jam observasi aktual**)*")
     
-    # Highlight tabel (Hijau untuk nilai terbaik)
+    # Highlight tabel (Hide index & Hijau untuk nilai terbaik)
     st.dataframe(
         df_metrics.style
         .highlight_min(subset=["RMSE (cm) ↓", "MAE (cm) ↓"], color='#bbf7d0', axis=0)
-        .highlight_max(subset=["Korelasi (r) ↑"], color='#bbf7d0', axis=0)
-        .format({"RMSE (cm) ↓": "{:.3f}", "MAE (cm) ↓": "{:.3f}", "Korelasi (r) ↑": "{:.3f}"}),
-        use_container_width=True
+        .highlight_max(subset=["Akurasi (%) ↑", "Korelasi (r) ↑"], color='#bbf7d0', axis=0)
+        .format({"Akurasi (%) ↑": "{:.2f}%", "RMSE (cm) ↓": "{:.3f}", "MAE (cm) ↓": "{:.3f}", "Korelasi (r) ↑": "{:.3f}"}),
+        use_container_width=True,
+        hide_index=True
     )
     
-    # Generate Paragraf Kesimpulan Otomatis untuk Bab 4
+    # Generate Paragraf Kesimpulan Otomatis
     if best_method == "Hibrida (UTide + LSTM)":
-        kesimpulan = f"**Interpretasi Hasil:** Model **Hibrida** terbukti memberikan performa peramalan paling akurat dengan tingkat *Root Mean Square Error* (RMSE) terendah sebesar **{best_rmse:.2f} cm**. Penggunaan pendekatan ini berhasil mereduksi tingkat kesalahan prediksi pasang surut astronomis murni (UTide) sebesar **{impr_utide:.1f}%**."
+        kesimpulan = f"**Interpretasi Hasil:** Berdasarkan perhitungan metrik di atas, model **Hibrida** terbukti memberikan performa peramalan paling akurat dengan tingkat *Root Mean Square Error* (RMSE) terendah sebesar **{best_rmse:.2f} cm**. Penggunaan pendekatan residual ini berhasil meningkatkan akurasi secara signifikan dan mereduksi tingkat kesalahan prediksi astronomis murni (UTide) sebesar **{impr_utide:.1f}%**."
+        st.success(kesimpulan, icon="✅")
     else:
-        kesimpulan = f"**Interpretasi Hasil:** Pada rentang waktu ini, model **{best_method}** menunjukkan akurasi paling tinggi dengan RMSE sebesar **{best_rmse:.2f} cm**."
-        
-    st.info(kesimpulan)
+        kesimpulan = f"**Interpretasi Hasil:** Pada rentang pengujian data saat ini, model **{best_method}** menunjukkan kinerja paling optimal dibandingkan metode lain dengan nilai RMSE sebesar **{best_rmse:.2f} cm**."
+        st.info(kesimpulan, icon="ℹ️")
 
 
 # =========================================================================
@@ -485,13 +503,15 @@ def main() -> None:
     
     st.markdown(f"""<div style="display: flex; align-items: baseline; margin: 8px 0 3px 0;"><h3 style="margin:0; padding:0; font-size:19px; font-weight:600; color:#1E293B;">📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3></div>""", unsafe_allow_html=True)
 
+    # 1. TAMPILKAN GRAFIK TERLEBIH DAHULU
     fig = build_comparison_chart(df_filtered, df_lstm_filtered, data_dsda)
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
     
-    render_data_table(df_filtered, df_lstm_filtered)
-    
-    # ----- MEMANGGIL FUNGSI EVALUASI TESIS -----
+    # 2. TAMPILKAN ANALISIS KINERJA (EVALUASI TESIS)
     render_thesis_analysis(df, df_lstm, df_filtered, df_lstm_filtered)
+    
+    # 3. TAMPILKAN DATA MENTAH TABULAR (PALING BAWAH)
+    render_data_table(df_filtered, df_lstm_filtered)
 
 
 if __name__ == "__main__":
