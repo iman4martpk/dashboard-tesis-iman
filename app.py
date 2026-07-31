@@ -1,9 +1,9 @@
-"""
+code = """\"\"\"
 Dashboard Monitoring Pasut Hibrida (UTide + LSTM) - Stasiun Pasar Ikan, Jakarta.
 
 Aplikasi Streamlit ini menampilkan perbandingan performa tiga metode
 prediksi pasang surut air laut dengan data observasi independen secara REAL-TIME.
-"""
+\"\"\"
 
 from __future__ import annotations
 
@@ -44,10 +44,10 @@ COLOR_PALETTE = {
     "danger": "#ef4444",
     
     # GARIS GRAFIK
-    "observasi": "#475569",                 # Slate-600 (Abu-abu baja kalem, tidak terlalu gelap)
-    "utide": "rgba(0, 194, 255, 0.30)",     # Cyan elektrik, transparan 50%
-    "lstm": "rgba(255, 45, 149, 0.30)",     # Magenta terang, transparan 50%
-    "hibrida": "rgba(37, 99, 235, 0.40)",   # Royal Blue (Biru elegan & atraktif), sedikit lebih pekat
+    "observasi": "#475569",                 # Slate-600 (Abu-abu baja kalem, solid)
+    "utide": "rgba(0, 194, 255, 0.45)",     # Cyan elektrik
+    "lstm": "rgba(16, 185, 129, 0.45)",     # Hijau Emerald (Sangat kontras di background merah/jingga)
+    "hibrida": "rgba(37, 99, 235, 0.65)",   # Royal Blue (Andalan, lebih tebal sedikit)
     
     # PITA GRADASI (Background)
     "aman": "#BAE6FD",     # Biru muda kalem (sky-200) untuk area < 230
@@ -63,7 +63,7 @@ ALERT_ZONES = [
     # (y0, y1, warna, label, opacity)
     (Y_AXIS_MIN, 230, COLOR_PALETTE["aman"], "KONDISI AMAN", 0.25),
     (230, 250, COLOR_PALETTE["waspada"], "WASPADA ROB", 0.32),
-    (250, Y_AXIS_MAX, COLOR_PALETTE["awas"], "AWAS ROB", 0.30),
+    (250, Y_AXIS_MAX, COLOR_PALETTE["awas"], "AWAS ROB", 0.25), # Opacity background merah diturunin dikit biar garis kelihatan
 ]
 
 # --- LOGIKA DINAMIS 2 HARI KE BELAKANG & 2 HARI KE DEPAN ---
@@ -115,16 +115,16 @@ TMA_MIN, TMA_MAX = -300, 500
 
 
 def _extract_pasar_ikan_reading(tree: html.HtmlElement) -> Optional[dict]:
-    """
+    \"\"\"
     Cari baris "Pasar Ikan" secara generik (nama pos & posisi kolom, bukan
     index baris/kolom tetap) supaya tidak gampang gagal saat markup situs
     BPBD sedikit berubah.
-    """
+    \"\"\"
     header_cells = tree.xpath("//table//thead//tr[last()]//*[self::th or self::td]")
     jam_list = []
     for cell in header_cells:
         text = " ".join(cell.itertext())
-        match = re.search(r"\b\d{1,2}:\d{2}\b", text)
+        match = re.search(r"\\b\d{1,2}:\d{2}\\b", text)
         if match:
             jam_list.append(match.group())
     if not jam_list:
@@ -172,7 +172,7 @@ def fetch_realtime_data() -> Optional[dict]:
 # =========================================================================
 def inject_custom_css() -> None:
     st.markdown(
-        f"""
+        f\"\"\"
         <style>
         [data-baseweb="popover"] {{ transform: scale(0.95) !important; transform-origin: top left !important; }}
         [data-baseweb="popover"] > div {{ max-width: 260px !important; }}
@@ -194,18 +194,18 @@ def inject_custom_css() -> None:
         .summary-text {{ font-family: Arial, Helvetica, sans-serif !important; font-weight: 600; font-size: 0.82rem; color: #1e293b; }}
         @media (max-width: 767px) {{ .block-container {{ padding-top: 3.4rem !important; }} .header-text h2 {{ font-size: 1.1rem !important; margin-top: 10px !important; }} .summary-text {{ font-size: 0.72rem !important; }} [data-testid="stMetricValue"] {{ font-size: 12px !important; }} }}
         </style>
-        """,
+        \"\"\",
         unsafe_allow_html=True,
     )
 
 
 def _parse_datetime_column(series: pd.Series) -> pd.Series:
-    """
+    \"\"\"
     Parsing Datetime yang tahan terhadap format campuran (mis. file lama
     berformat "%m/%d/%Y %H:%M" bercampur dengan baris baru dari scraper yang
     berformat ISO "%Y-%m-%d %H:%M:%S"). Baris yang gagal diparse dijadikan
     NaT (bukan meng-crash-kan seluruh aplikasi) lalu dibuang.
-    """
+    \"\"\"
     parsed = pd.to_datetime(series, format="mixed", dayfirst=False, errors="coerce")
     n_invalid = parsed.isna().sum()
     if n_invalid:
@@ -299,9 +299,9 @@ def compute_kpis(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> O
 
     return KpiResult(
         reduksi_eror_persen=reduksi_eror,
-        # Untuk metrik card, kita panggil warna solid dari dictionary agar teks mudah dibaca
+        # Mengubah warna card KPI menyesuaikan dengan garis
         utide=build_metrik("UTIDE", rmse_utide, "#00C2FF"),
-        lstm=build_metrik("LSTM", rmse_lstm, "#FF2D95"),
+        lstm=build_metrik("LSTM", rmse_lstm, "#10B981"), # Warna Hijau Emerald solid untuk label KPI
         hibrida=build_metrik("HIBRIDA", rmse_hibrida, "#2563EB"),
     )
 
@@ -311,7 +311,7 @@ def compute_kpis(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> O
 # =========================================================================
 def render_header() -> None:
     st.markdown(
-        """<div class="header-text"><h2 style="margin: 0; color: #0F172A; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 1.55rem;">🌊 MONITORING PASUT HIBRIDA (UTIDE + LSTM) REAL-TIME</h2></div>""",
+        \"\"\"<div class="header-text"><h2 style="margin: 0; color: #0F172A; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 1.55rem;">🌊 MONITORING PASUT HIBRIDA (UTIDE + LSTM) REAL-TIME</h2></div>\"\"\",
         unsafe_allow_html=True,
     )
 
@@ -323,13 +323,13 @@ def render_summary_box(pilihan_mode: str, data_dsda: Optional[dict]) -> None:
         info_realtime = " | 🔴 <b>DSDA Real-time:</b> <span style='color:#64748B;'>Offline/Delay</span>"
 
     st.markdown(
-        f"""
+        f\"\"\"
         <div class="summary-box">
             <span class="summary-text">
                 📍 <b>Stasiun:</b> Pasar Ikan, Jakarta | 🛡️ <b>Mode:</b> {PRESETS[pilihan_mode]['desc']}{info_realtime}
             </span>
         </div>
-        """,
+        \"\"\",
         unsafe_allow_html=True,
     )
 
@@ -361,7 +361,7 @@ def render_empty_kpi_cards() -> None:
 
 
 def _add_alert_zones(fig: go.Figure) -> None:
-    """Gambar pita gradasi level siaga sebagai background chart (bukan garis)."""
+    \"\"\"Gambar pita gradasi level siaga sebagai background chart (bukan garis).\"\"\"
     for y0, y1, warna, label, opacity in ALERT_ZONES:
         y0_clip = max(y0, Y_AXIS_MIN)
         y1_clip = min(y1, Y_AXIS_MAX)
@@ -390,34 +390,37 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
 
     # --- URUTAN TRACE DIRUBAH (PLOTLY MENGGAMBAR DARI BAWAH KE ATAS) ---
     # 1. Observasi Historis digambar PERTAMA agar menjadi Layer Paling Dasar (Baseline).
-    #    Garisnya dibikin sedikit lebih tebal (width=3.5) agar menonjol sebagai fondasi.
     if df_filtered[COL_OBSERVASI].notna().sum() > 0:
         fig.add_trace(go.Scatter(
             x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI],
             mode="lines", name="Observasi Stasiun (TMA Aktual)",
-            line=dict(color=COLOR_PALETTE["observasi"], width=3.5, shape="spline", smoothing=0.9),
+            # 🔥 Width diperkecil jadi 2.5 (sebelumnya 3.5) agar tidak terlalu tebal/kaku
+            line=dict(color=COLOR_PALETTE["observasi"], width=2.5, shape="spline", smoothing=0.9),
             connectgaps=False,
         ))
 
-    # 2. Prediksi UTide Murni (Transparan 50%, numpang di atas observasi)
+    # 2. Prediksi UTide Murni (Transparan, numpang di atas observasi)
     fig.add_trace(go.Scatter(
         x=df_filtered[COL_DATETIME], y=df_filtered[COL_UTIDE],
         mode="lines", name="Prediksi UTide Murni (Astronomis)",
-        line=dict(color=COLOR_PALETTE["utide"], width=2.4, shape="spline", smoothing=0.9),
+        # 🔥 Width diperkecil jadi 1.5 agar lebih rapi dan elegan saat bertumpuk
+        line=dict(color=COLOR_PALETTE["utide"], width=1.5, shape="spline", smoothing=0.9),
     ))
 
-    # 3. Prediksi LSTM Murni (Transparan 50%, numpang di atas observasi)
+    # 3. Prediksi LSTM Murni (Transparan, numpang di atas observasi)
     fig.add_trace(go.Scatter(
         x=df_lstm_filtered[COL_DATETIME], y=df_lstm_filtered[COL_LSTM],
         mode="lines", name="Prediksi LSTM Murni (Non-Astronomis)",
-        line=dict(color=COLOR_PALETTE["lstm"], width=2.4, shape="spline", smoothing=0.9),
+        # 🔥 Width diperkecil jadi 1.5
+        line=dict(color=COLOR_PALETTE["lstm"], width=1.5, shape="spline", smoothing=0.9),
     ))
 
-    # 4. Prediksi Hibrida (Transparan 60%, numpang paling atas agar menonjol)
+    # 4. Prediksi Hibrida (Transparan 65%, numpang paling atas agar menonjol)
     fig.add_trace(go.Scatter(
         x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA],
         mode="lines", name="Prediksi Hibrida (UTide + LSTM)",
-        line=dict(color=COLOR_PALETTE["hibrida"], width=3.0, shape="spline", smoothing=0.9),
+        # 🔥 Width diperkecil jadi 2.0 (sebelumnya 3.0), tapi tetap sedikit lebih tebal dari prediksi lain
+        line=dict(color=COLOR_PALETTE["hibrida"], width=2.0, shape="spline", smoothing=0.9),
     ))
 
     # 5. Garis vertikal waktu sekarang
@@ -506,11 +509,11 @@ def main() -> None:
         render_empty_kpi_cards()
 
     st.markdown(
-        f"""
+        f\"\"\"
         <div style="display: flex; align-items: baseline; margin: 8px 0 3px 0;">
             <h3 style="margin:0; padding:0; font-size:19px; font-weight:600; color:#1E293B;">📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>
         </div>
-        """,
+        \"\"\",
         unsafe_allow_html=True,
     )
 
@@ -522,3 +525,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+"""
+with open('app.py', 'w', encoding='utf-8') as f:
+    f.write(code)
+print("File app.py updated successfully.")
