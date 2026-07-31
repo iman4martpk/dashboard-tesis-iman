@@ -2,17 +2,13 @@ name: 🔄 Jalur 2 - Retrain ML Pipeline (Mingguan via GAS)
 
 on:
   repository_dispatch:
-    # 🎯 Menangkap sinyal event_type yang ditembak oleh GAS Mingguan lu
     types: [trigger_ml_pipeline]
-    
   workflow_dispatch:
-    # 🛠️ Tombol manual buat test drive kapan aja di tab Actions
 
 jobs:
   train_and_update_model:
     runs-on: ubuntu-latest
     
-    # 🔑 Izin agar robot bisa push file model & CSV setelah komputasi selesai
     permissions:
       contents: write
       
@@ -20,16 +16,16 @@ jobs:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
         
-      - name: 🐍 Set up Python
+      - name: 🐍 Set up Python (Disamakan dengan Laptop Lu)
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.12.7'  # Sesuai spek laptop lu
           cache: 'pip'
           
-      - name: 📦 Install ML Dependencies (Double Protection Guard)
+      - name: 📦 Install ML Dependencies (Kunci Versi Tesis Lu)
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy plotly requests lxml tensorflow scikit-learn==1.8.0 streamlit
+          pip install numpy==1.26.4 pandas==3.0.0 scikit-learn==1.8.0 tensorflow==2.21.0 joblib==1.5.3 plotly requests lxml streamlit
           
       - name: 🧠 Eksekusi Script Training & Forecast Seq2Seq
         run: python retrain_and_forecast.py 
@@ -39,19 +35,15 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 1. Daftarkan file model master, scaler, DAN file CSV hasil prediksi baru!
           git add model_pasar_ikan_lstm_murni_master.keras model_pasar_ikan_master.keras scaler_residu_pasar_ikan.save scaler_tma_pasar_ikan_lstm_murni.save HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv
           
-          # 2. Sinkronisasi riwayat Git biar gak bentrok
           git fetch origin main
           git reset --mixed origin/main
           
-          # 3. Add ulang semuanya setelah reset agar siap di-commit secara rapi
           git add model_pasar_ikan_lstm_murni_master.keras model_pasar_ikan_master.keras scaler_residu_pasar_ikan.save scaler_tma_pasar_ikan_lstm_murni.save HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv
           
-          # 4. Commit dan push secara aman jika terdeteksi perubahan nilai
           if ! git diff --cached --quiet; then
-            git commit -m "🤖 Auto-retrain & update LSTM model + forecast CSV (Jalur 2)"
+            git commit -m "🤖 Auto-retrain & update LSTM model + forecast CSV (Jalur 2 - Synced Environment)"
             git pull --rebase origin main
             git push origin main
           else
