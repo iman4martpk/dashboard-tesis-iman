@@ -17,6 +17,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+import pytz
 from lxml import html
 
 # =========================================================================
@@ -25,6 +26,13 @@ from lxml import html
 
 PAGE_TITLE = "Dashboard Pasut Hibrida Pasar Ikan"
 PAGE_ICON = "🌊"
+
+# Zona waktu konsisten untuk server Streamlit Cloud / GitHub
+TZ_JKT = pytz.timezone("Asia/Jakarta")
+
+def get_now_jkt() -> datetime:
+    """Mengembalikan waktu saat ini di Jakarta tanpa timezone (naive) untuk mencocokkan CSV."""
+    return datetime.now(TZ_JKT).replace(tzinfo=None)
 
 # 3 File Master Data
 DATA_FILE_HIBRIDA = "HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv"
@@ -63,7 +71,7 @@ ALERT_ZONES = [
 ]
 
 # --- LOGIKA DINAMIS 2 HARI KE BELAKANG & 2 HARI KE DEPAN ---
-HARI_INI = datetime.now()
+HARI_INI = get_now_jkt()
 START_REALTIME = (HARI_INI - timedelta(days=2)).strftime("%Y-%m-%d 00:00:00")
 END_REALTIME = (HARI_INI + timedelta(days=2)).strftime("%Y-%m-%d 23:00:00")
 
@@ -157,7 +165,7 @@ def fetch_realtime_data() -> Optional[dict]:
 
 
 # =========================================================================
-# 3. STYLING & DATA PIPELINE
+# 3. STYLING & DATA PIPELINE SINKRONISASI
 # =========================================================================
 def inject_custom_css() -> None:
     st.markdown(
@@ -166,12 +174,12 @@ def inject_custom_css() -> None:
         .block-container {{ padding-top: 3.2rem !important; padding-bottom: 2rem !important; max-width: 95% !important; }}
         .header-text {{ text-align: center; width: 100%; margin-top: 5px; margin-bottom: 0px !important; padding-bottom: 0px !important; }}
         html, body, [class*="css"] {{ font-family: Arial, Helvetica, sans-serif !important; }}
-        div[data-testid="stMetric"] {{ background-color: #ffffff !important; border: 1px solid #e2e8f0 !important; padding: 4px 10px !important; border-radius: 8px !important; min-height: 55px !important; }}
+        /* FIX: Tambahan border-left 4px di base CSS agar garis kiri kartu selalu muncul kokoh */
+        div[data-testid="stMetric"] {{ background-color: #ffffff !important; border: 1px solid #e2e8f0 !important; border-left: 4px solid #e2e8f0 !important; padding: 4px 10px !important; border-radius: 8px !important; min-height: 55px !important; }}
         div[data-testid="stMetricLabel"] {{ color: #64748b !important; font-weight: 600 !important; font-size: 0.68rem !important; margin-bottom: -4px !important; }}
         [data-testid="stMetricValue"] {{ font-size: 14px !important; font-weight: 700 !important; color: #0f172a !important; }}
         .summary-box {{ background-color: #f1f5f9 !important; padding: 6px 12px !important; border-radius: 8px !important; margin-top: 4px !important; margin-bottom: 8px !important; border-left: 5px solid {COLOR_PALETTE['primary']} !important; text-align: center !important; }}
         .summary-text {{ font-family: Arial, Helvetica, sans-serif !important; font-weight: 600; font-size: 0.82rem; color: #1e293b; }}
-        /* Styling untuk Evaluasi Box */
         .eval-box {{ background-color: #f8fafc; padding: 15px; border-radius: 8px; border-left: 5px solid {COLOR_PALETTE['primary']}; margin-bottom: 15px; }}
         </style>
         """,
@@ -184,8 +192,13 @@ def _parse_datetime_column(series: pd.Series) -> pd.Series:
         parsed = parsed.dt.tz_localize(None)
     return parsed
 
-def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    df_hibrida = pd.read_csv(DATA_FILE_HIBRIDA)
+def load_data() -> pd.DataFrame:
+    """
+    FIX STRUKTURAL: Semua dataframe (Hibrida, LSTM, Observasi) dilebur ke dalam
+    satu grid waktu master (Left Merge) agar ukurannya dijamin sama dan mustahil
+    terjadi crash index baris tidak sejajar saat filter applied.
+    """
+    df_master = pd.read_csv(DATA_FILE_HIBRIDA)
     df_lstm = pd.read_csv(DATA_FILE_LSTM)
 
     try:
@@ -193,19 +206,26 @@ def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     except FileNotFoundError:
         df_obs = pd.DataFrame({COL_DATETIME: pd.Series(dtype="datetime64[ns]"), COL_OBSERVASI: pd.Series(dtype="float64")})
 
-    df_hibrida[COL_DATETIME] = _parse_datetime_column(df_hibrida[COL_DATETIME])
+    df_master[COL_DATETIME] = _parse_datetime_column(df_master[COL_DATETIME])
     df_lstm[COL_DATETIME] = _parse_datetime_column(df_lstm[COL_DATETIME])
     df_obs[COL_DATETIME] = _parse_datetime_column(df_obs[COL_DATETIME])
 
-    df_hibrida = df_hibrida.dropna(subset=[COL_DATETIME])
-    df_lstm = df_lstm.dropna(subset=[COL_DATETIME])
-    df_obs = df_obs.dropna(subset=[COL_DATETIME])
+    # Hapus baris yang datetime-nya invalid (NaT)
+    df_master = df_master.dropna(subset=[COL_DATETIME]).drop_duplicates(subset=[COL_DATETIME])
+    df_lstm = df_lstm.dropna(subset=[COL_DATETIME]).drop_duplicates(subset=[COL_DATETIME])
+    df_obs = df_obs.dropna(subset=[COL_DATETIME]).drop_duplicates(subset=[COL_DATETIME])
 
-    if COL_OBSERVASI in df_hibrida.columns:
-        df_hibrida = df_hibrida.drop(columns=[COL_OBSERVASI])
+    # Bersihkan kolom observasi bawaan di master agar tidak tumpang tindih
+    if COL_OBSERVASI in df_master.columns:
+        df_master = df_master.drop(columns=[COL_OBSERVASI])
+    if COL_LSTM in df_master.columns:
+        df_master = df_master.drop(columns=[COL_LSTM])
 
-    df_hibrida = pd.merge(df_hibrida, df_obs[[COL_DATETIME, COL_OBSERVASI]], on=COL_DATETIME, how="left")
-    return df_hibrida, df_lstm
+    # MERGE (Penyatuan Suci)
+    df_master = pd.merge(df_master, df_lstm[[COL_DATETIME, COL_LSTM]], on=COL_DATETIME, how="left")
+    df_master = pd.merge(df_master, df_obs[[COL_DATETIME, COL_OBSERVASI]], on=COL_DATETIME, how="left")
+    
+    return df_master
 
 def filter_by_preset(df: pd.DataFrame, preset_name: str, custom_start=None, custom_end=None) -> pd.Series:
     if preset_name == CUSTOM_PRESET_KEY:
@@ -233,7 +253,7 @@ class KpiResult:
     lstm: MetodeMetrik
     hibrida: MetodeMetrik
 
-def compute_kpis(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> Optional[KpiResult]:
+def compute_kpis(df_filtered: pd.DataFrame) -> Optional[KpiResult]:
     valid_idx = df_filtered[COL_OBSERVASI].notna()
     if valid_idx.sum() == 0:
         return None
@@ -244,7 +264,7 @@ def compute_kpis(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> O
         return float(np.sqrt(np.mean((observasi - prediksi) ** 2)))
 
     rmse_utide = rmse(df_filtered.loc[valid_idx, COL_UTIDE])
-    rmse_lstm = rmse(df_lstm_filtered.loc[valid_idx, COL_LSTM])
+    rmse_lstm = rmse(df_filtered.loc[valid_idx, COL_LSTM])
     rmse_hibrida = rmse(df_filtered.loc[valid_idx, COL_HIBRIDA])
 
     reduksi_eror = ((rmse_utide - rmse_hibrida) / rmse_utide) * 100 if rmse_utide > 0 else 0.0
@@ -286,20 +306,29 @@ def render_kpi_cards(kpi: KpiResult) -> None:
     _render_metric_card(col3, "📊 RMSE LSTM (Data-Driven)", f"{kpi.lstm.rmse:.2f} cm {_metrik_badge(kpi.lstm)}", kpi.lstm.warna)
     _render_metric_card(col4, "🏆 RMSE HIBRIDA (Integrasi)", f"{kpi.hibrida.rmse:.2f} cm {_metrik_badge(kpi.hibrida)}", kpi.hibrida.warna)
 
+def render_empty_kpi_cards() -> None:
+    """FIX: Menampilkan kartu kosong jika tidak ada data observasi, agar layout tidak patah."""
+    col1, col2, col3, col4 = st.columns(4)
+    _render_metric_card(col1, "📈 REDUKSI EROR (vs UTide)", '<span style="color: #64748B;">Tidak ada data</span>', COLOR_PALETTE["observasi"])
+    _render_metric_card(col2, "📉 RMSE UTIDE (Astronomis)", '<span style="color: #64748B;">Tidak ada data</span>', COLOR_PALETTE["observasi"])
+    _render_metric_card(col3, "📊 RMSE LSTM (Data-Driven)", '<span style="color: #64748B;">Tidak ada data</span>', COLOR_PALETTE["observasi"])
+    _render_metric_card(col4, "🏆 RMSE HIBRIDA (Integrasi)", '<span style="color: #64748B;">Tidak ada data</span>', COLOR_PALETTE["observasi"])
+
 def _add_alert_zones(fig: go.Figure, dynamic_min: float, dynamic_max: float) -> None:
     for y0, y1, warna, label, opacity in ALERT_ZONES:
         y0_clip = max(y0, dynamic_min)
         y1_clip = min(y1, dynamic_max)
         if y0_clip >= y1_clip: continue
-        fig.add_hrect(y0=y0, y1=y1, fillcolor=warna, opacity=opacity, line_width=0, layer="below")
+        # FIX: y0_clip dan y1_clip dipakai di dalam add_hrect agar gambarnya presisi
+        fig.add_hrect(y0=y0_clip, y1=y1_clip, fillcolor=warna, opacity=opacity, line_width=0, layer="below")
         fig.add_annotation(xref="paper", yref="y", x=0.005, y=(y0_clip + y1_clip) / 2, text=f"<b>{label}</b>", showarrow=False, xanchor="left", yanchor="middle", font=dict(color="#1E293B", size=10, family="Arial"), bgcolor="rgba(255,255,255,0.55)")
 
-def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame, data_dsda: Optional[dict]) -> go.Figure:
-    all_mins = [df_filtered[COL_OBSERVASI].min(), df_filtered[COL_UTIDE].min(), df_filtered[COL_HIBRIDA].min(), df_lstm_filtered[COL_LSTM].min()]
+def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict]) -> go.Figure:
+    all_mins = [df_filtered[COL_OBSERVASI].min(), df_filtered[COL_UTIDE].min(), df_filtered[COL_HIBRIDA].min(), df_filtered[COL_LSTM].min()]
     valid_mins = [v for v in all_mins if pd.notna(v)]
     current_min = min(valid_mins) if valid_mins else 100
     
-    all_maxs = [df_filtered[COL_OBSERVASI].max(), df_filtered[COL_UTIDE].max(), df_filtered[COL_HIBRIDA].max(), df_lstm_filtered[COL_LSTM].max()]
+    all_maxs = [df_filtered[COL_OBSERVASI].max(), df_filtered[COL_UTIDE].max(), df_filtered[COL_HIBRIDA].max(), df_filtered[COL_LSTM].max()]
     valid_maxs = [v for v in all_maxs if pd.notna(v)]
     current_max = max(valid_maxs) if valid_maxs else 280
 
@@ -313,11 +342,12 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
         fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI], mode="lines", name="Observasi Stasiun (TMA Aktual)", line=dict(color=COLOR_PALETTE["observasi"], width=2.5, shape="spline", smoothing=0.9), connectgaps=False))
 
     fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_UTIDE], mode="lines", name="Prediksi UTide (Pendekatan Astronomis)", line=dict(color=COLOR_PALETTE["utide"], width=1.5, shape="spline", smoothing=0.9)))
-    fig.add_trace(go.Scatter(x=df_lstm_filtered[COL_DATETIME], y=df_lstm_filtered[COL_LSTM], mode="lines", name="Prediksi LSTM (Pendekatan Data-Driven)", line=dict(color=COLOR_PALETTE["lstm"], width=1.5, shape="spline", smoothing=0.9)))
+    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_LSTM], mode="lines", name="Prediksi LSTM (Pendekatan Data-Driven)", line=dict(color=COLOR_PALETTE["lstm"], width=1.5, shape="spline", smoothing=0.9)))
     fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (Integrasi Keduanya)", line=dict(color=COLOR_PALETTE["hibrida"], width=2.0, shape="spline", smoothing=0.9)))
 
     if data_dsda and data_dsda["tma"] is not None:
-        waktu_sekarang_jam = datetime.now().replace(minute=0, second=0, microsecond=0)
+        # FIX: Gunakan waktu lokal Jakarta
+        waktu_sekarang_jam = get_now_jkt().replace(minute=0, second=0, microsecond=0)
         min_date = df_filtered[COL_DATETIME].min()
         max_date = df_filtered[COL_DATETIME].max()
         if pd.notna(min_date) and pd.notna(max_date) and min_date <= waktu_sekarang_jam <= max_date:
@@ -326,18 +356,19 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
     fig.update_layout(height=430, template="plotly_white", margin=dict(l=10, r=10, t=25, b=10), hovermode="x unified", hoverlabel=dict(bgcolor="white", font_size=11, font_family="Arial"), xaxis=dict(tickfont=dict(size=10, family="Arial")), yaxis=dict(title=dict(text="Tinggi Air (cm)", font=dict(size=11, family="Arial")), tickfont=dict(size=10, family="Arial"), range=[dynamic_min, dynamic_max]), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, family="Arial")), font=dict(family="Arial, Helvetica, sans-serif", color="#1E293B"))
     return fig
 
-def render_data_table(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> None:
+def render_data_table(df_filtered: pd.DataFrame) -> None:
     st.divider()
     st.markdown("<h4 style='margin:0 0 10px 0; padding:0; font-size:16px; font-weight:700; color:#1E293B;'>📋 Data Numerik Mentah (Tabular)</h4>", unsafe_allow_html=True)
     df_tampilan = pd.DataFrame({
         COL_DATETIME: df_filtered[COL_DATETIME],
         COL_OBSERVASI: df_filtered[COL_OBSERVASI],
         COL_UTIDE: df_filtered[COL_UTIDE],
-        COL_LSTM: df_lstm_filtered[COL_LSTM].values,
+        COL_LSTM: df_filtered[COL_LSTM],
         COL_HIBRIDA: df_filtered[COL_HIBRIDA],
     })
     
-    st.dataframe(df_tampilan.reset_index(drop=True), width="stretch", hide_index=True)
+    # FIX: Konsistensi Streamlit API
+    st.dataframe(df_tampilan.reset_index(drop=True), use_container_width=True, hide_index=True)
     
     csv_data = df_tampilan.to_csv(index=False).encode("utf-8")
     st.download_button(label="📥 Unduh Data Tabular Ini (.CSV)", data=csv_data, file_name="DATA_INSPEKSI_PASUT.csv", mime="text/csv")
@@ -346,7 +377,7 @@ def render_data_table(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame)
 # =========================================================================
 # 6. SEKSI EVALUASI TESIS (ANALISIS MENDALAM)
 # =========================================================================
-def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame, df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> None:
+def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -> None:
     st.divider()
     
     # Banner Header Profesional
@@ -357,7 +388,6 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame
         </div>
     """, unsafe_allow_html=True)
     
-    # Selector Horizontal (Lebih rapi dan hemat tempat)
     scope = st.radio(
         "Pilih Cakupan Analisis Data:",
         ["Sesuai Tampilan Grafik", "Rekap Bulanan", "Rentang Kustom"],
@@ -366,23 +396,23 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame
     
     # Setup data berdasarkan pilihan user
     eval_df = df_filtered.copy()
-    eval_lstm = df_lstm_filtered.copy()
     
     if scope == "Rekap Bulanan":
-        df_master['MonthYear'] = df_master[COL_DATETIME].dt.to_period('M')
-        months = sorted(df_master['MonthYear'].dropna().unique(), reverse=True)
+        # FIX: Gunakan df.copy() agar tidak merusak df master di memory
+        df_master_copy = df_master.copy()
+        df_master_copy['MonthYear'] = df_master_copy[COL_DATETIME].dt.to_period('M')
+        months = sorted(df_master_copy['MonthYear'].dropna().unique(), reverse=True)
         
-        # Logika dinamis: Default cari bulan lalu (bulan berjalan - 1)
-        last_month_period = pd.Period(datetime.now(), 'M') - 1
+        # Logika dinamis: Default cari bulan lalu dari waktu Jakarta
+        last_month_period = pd.Period(get_now_jkt(), 'M') - 1
         default_idx = months.index(last_month_period) if last_month_period in months else 0
         
         col_month, _ = st.columns([1, 2])
         with col_month:
             selected_month = st.selectbox("📅 Pilih Bulan Evaluasi:", months, index=default_idx, format_func=lambda x: x.strftime('%B %Y'))
         
-        mask_month = df_master['MonthYear'] == selected_month
-        eval_df = df_master[mask_month].copy()
-        eval_lstm = df_lstm_master[mask_month].copy()
+        mask_month = df_master_copy['MonthYear'] == selected_month
+        eval_df = df_master_copy[mask_month].copy()
         
     elif scope == "Rentang Kustom":
         min_date = df_master[COL_DATETIME].min().date()
@@ -396,7 +426,6 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame
             c_start, c_end = custom_dates
             mask_custom = (df_master[COL_DATETIME].dt.date >= c_start) & (df_master[COL_DATETIME].dt.date <= c_end)
             eval_df = df_master[mask_custom].copy()
-            eval_lstm = df_lstm_master[mask_custom].copy()
         else:
             st.info("⚠️ Silakan pilih tanggal akhir untuk memproses analisis.")
             return
@@ -409,7 +438,7 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame
 
     obs = eval_df.loc[valid_idx, COL_OBSERVASI]
     utide = eval_df.loc[valid_idx, COL_UTIDE]
-    lstm = eval_lstm.loc[valid_idx, COL_LSTM]
+    lstm = eval_df.loc[valid_idx, COL_LSTM]
     hibrida = eval_df.loc[valid_idx, COL_HIBRIDA]
 
     def calc_metrics(pred):
@@ -417,8 +446,8 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame
         mae = np.mean(np.abs(obs - pred))
         corr = obs.corr(pred)
         
-        # Akurasi (%) berbasis MAPE (100% - Mean Absolute Percentage Error)
-        safe_obs = np.where(obs == 0, 1e-6, obs) # Hindari error division by zero
+        # Akurasi (%) berbasis MAPE
+        safe_obs = np.where(obs == 0, 1e-6, obs) 
         mape = np.mean(np.abs((obs - pred) / safe_obs)) * 100
         akurasi = max(0.0, 100.0 - mape)
         
@@ -447,7 +476,6 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame
     
     st.markdown(f"*(Data divalidasi berdasarkan sampel **{len(obs)} jam observasi aktual**)*")
     
-    # Highlight tabel (Hide index & Hijau untuk nilai terbaik)
     st.dataframe(
         df_metrics.style
         .highlight_min(subset=["RMSE (cm) ↓", "MAE (cm) ↓"], color='#bbf7d0', axis=0)
@@ -486,36 +514,38 @@ def main() -> None:
     data_dsda = fetch_realtime_data()
 
     try:
-        df, df_lstm = load_data()
+        # FIX: df_lstm sekarang sudah dilebur ke dalam df_master
+        df_master = load_data()
     except Exception as e:
         st.error(f"❌ File CSV gagal dimuat. Error: {e}")
         st.stop()
         return
 
-    pilihan_mode, custom_start, custom_end = render_sidebar_controls(df)
-    mask = filter_by_preset(df, pilihan_mode, custom_start, custom_end)
-    df_filtered = df[mask].copy()
-    df_lstm_filtered = df_lstm[mask].copy()
+    pilihan_mode, custom_start, custom_end = render_sidebar_controls(df_master)
+    mask = filter_by_preset(df_master, pilihan_mode, custom_start, custom_end)
+    df_filtered = df_master[mask].copy()
 
-    kpi = compute_kpis(df_filtered, df_lstm_filtered)
+    kpi = compute_kpis(df_filtered)
 
     render_header()
     render_summary_box(pilihan_mode, data_dsda)
 
     if kpi is not None:
         render_kpi_cards(kpi)
+    else:
+        render_empty_kpi_cards()
     
     st.markdown(f"""<div style="display: flex; align-items: baseline; margin: 8px 0 3px 0;"><h3 style="margin:0; padding:0; font-size:19px; font-weight:600; color:#1E293B;">📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3></div>""", unsafe_allow_html=True)
 
     # 1. TAMPILKAN GRAFIK TERLEBIH DAHULU
-    fig = build_comparison_chart(df_filtered, df_lstm_filtered, data_dsda)
-    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+    fig = build_comparison_chart(df_filtered, data_dsda)
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     
     # 2. TAMPILKAN ANALISIS KINERJA (EVALUASI TESIS)
-    render_thesis_analysis(df, df_lstm, df_filtered, df_lstm_filtered)
+    render_thesis_analysis(df_master, df_filtered)
     
     # 3. TAMPILKAN DATA MENTAH TABULAR (PALING BAWAH)
-    render_data_table(df_filtered, df_lstm_filtered)
+    render_data_table(df_filtered)
 
 
 if __name__ == "__main__":
