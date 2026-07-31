@@ -52,7 +52,7 @@ COLOR_PALETTE = {
     # PITA GRADASI (Background)
     "aman": "#BAE6FD",     # Biru muda kalem (sky-200) untuk area < 230
     "waspada": "#EA580C",  # Jingga tua
-    "awas": "#E11D48",     # Merah
+    "awas": "#FF0000",     # Merah
 }
 
 # --- Zona / pita siaga pada grafik (cm) ----------------------------------
