@@ -2,7 +2,7 @@
 Dashboard Monitoring Pasut Hibrida (UTide + LSTM) - Stasiun Pasar Ikan, Jakarta.
 
 Aplikasi Streamlit ini menampilkan perbandingan performa tiga metode
-prediksi pasang surut air laut dengan data observasi independen.
+prediksi pasang surut air laut dengan data observasi independen secara REAL-TIME.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import re
 PAGE_TITLE = "Dashboard Pasut Hibrida Pasar Ikan"
 PAGE_ICON = "🌊"
 
-# 3 File Master Sekarang!
+# 3 File Master Data
 DATA_FILE_HIBRIDA = "HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv"
 DATA_FILE_LSTM = "HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv"
 DATA_FILE_OBSERVASI = "HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv"
@@ -94,7 +94,7 @@ DEFAULT_PRESET_INDEX = 0
 
 
 # =========================================================================
-# 2. FUNGSI SCRAPING REAL-TIME BPBD (CACHE 10 MENIT)
+# 2. FUNGSI SCRAPING REAL-TIME BPBD (CACHE 10 MENIT TETAP AKTIF)
 # =========================================================================
 @st.cache_data(ttl=600)
 def fetch_realtime_data() -> Optional[dict]:
@@ -153,7 +153,7 @@ def inject_custom_css() -> None:
         unsafe_allow_html=True,
     )
 
-@st.cache_data(ttl=600)
+# ⚠️ CACHE DIMATIKAN DI SINI AGAR STREAMLIT SELALU BACA CSV TERBARU DARI GITHUB ⚠️
 def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     # 1. Baca data Prediksi (Grid Utuh)
     df_hibrida = pd.read_csv(DATA_FILE_HIBRIDA, parse_dates=[COL_DATETIME])
@@ -280,9 +280,8 @@ def render_empty_kpi_cards() -> None:
 def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame, data_dsda: Optional[dict]) -> go.Figure:
     fig = go.Figure()
     
-    # 1. Kurva Observasi Historis (Sekarang ditarik dari file observasi terpisah!)
+    # 1. Kurva Observasi Historis
     if df_filtered[COL_OBSERVASI].notna().sum() > 0:
-        # Menambahkan parameter connectgaps=False agar garis terputus jika ada missing data
         fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI], mode="lines", name="Observasi Stasiun (TMA Aktual)", line=dict(color=COLOR_PALETTE["observasi"], width=2.5), connectgaps=False))
         
     # 2. Kurva Prediksi UTide Murni
