@@ -37,21 +37,22 @@ COL_UTIDE = "Prediksi_Harmonik_UTIDE"
 COL_LSTM = "Prediksi_LSTM_Murni"
 COL_HIBRIDA = "Prediksi_Hibrida_Final"
 
-# --- Palet warna baru (lebih eye-catching) -------------------------------
+# --- Palet warna baru (Lebih elegan & modern) -------------------------------
 COLOR_PALETTE = {
     "primary": "#0B3D4C",
     "success": "#22c55e",
     "danger": "#ef4444",
-    # Garis: observasi solid gelap, prediksi transparan (dipakai lewat rgba di bawah)
-    "observasi": "#0F172A",                 # slate-900, 100% solid, garis "kebenaran lapangan"
-    "utide": "rgba(0, 194, 255, 0.50)",     # cyan elektrik, transparan 50%
-    "lstm": "rgba(255, 45, 149, 0.50)",     # magenta terang, transparan 50%
-    "hibrida": "rgba(124, 58, 237, 0.60)",  # ungu vivid, transparan 60% (sedikit lebih tebal sbg andalan)
     
-    # Pita gradasi level siaga (dipakai di background chart)
-    "aman": "#BAE6FD",     # biru muda kalem (sky-200)
-    "waspada": "#EA580C",  # jingga tua
-    "awas": "#DC2626",     # merah
+    # GARIS GRAFIK
+    "observasi": "#475569",                 # Slate-600 (Abu-abu baja kalem, tidak terlalu gelap)
+    "utide": "rgba(0, 194, 255, 0.50)",     # Cyan elektrik, transparan 50%
+    "lstm": "rgba(255, 45, 149, 0.50)",     # Magenta terang, transparan 50%
+    "hibrida": "rgba(37, 99, 235, 0.80)",   # Royal Blue (Biru elegan & atraktif), sedikit lebih pekat
+    
+    # PITA GRADASI (Background)
+    "aman": "#BAE6FD",     # Biru muda kalem (sky-200) untuk area < 230
+    "waspada": "#EA580C",  # Jingga tua
+    "awas": "#DC2626",     # Merah
 }
 
 # --- Zona / pita siaga pada grafik (cm) ----------------------------------
@@ -60,7 +61,7 @@ Y_AXIS_MAX = 280
 
 ALERT_ZONES = [
     # (y0, y1, warna, label, opacity)
-    (Y_AXIS_MIN, 230, COLOR_PALETTE["aman"], " ", 0.25),
+    (Y_AXIS_MIN, 230, COLOR_PALETTE["aman"], "KONDISI AMAN", 0.25),
     (230, 250, COLOR_PALETTE["waspada"], "WASPADA ROB", 0.32),
     (250, Y_AXIS_MAX, COLOR_PALETTE["awas"], "AWAS ROB", 0.30),
 ]
@@ -228,8 +229,7 @@ def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     except FileNotFoundError:
         df_obs = pd.DataFrame({COL_DATETIME: pd.Series(dtype="datetime64[ns]"), COL_OBSERVASI: pd.Series(dtype="float64")})
 
-    # 🔥 Paksa semua kolom Datetime menjadi format datetime murni tanpa timezone,
-    # tahan terhadap format string yang campur-campur (lihat _parse_datetime_column).
+    # 🔥 Paksa semua kolom Datetime menjadi format datetime murni tanpa timezone
     df_hibrida[COL_DATETIME] = _parse_datetime_column(df_hibrida[COL_DATETIME])
     df_lstm[COL_DATETIME] = _parse_datetime_column(df_lstm[COL_DATETIME])
     df_obs[COL_DATETIME] = _parse_datetime_column(df_obs[COL_DATETIME])
@@ -242,7 +242,7 @@ def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     if COL_OBSERVASI in df_hibrida.columns:
         df_hibrida = df_hibrida.drop(columns=[COL_OBSERVASI])
 
-    # 4. GABUNGKAN (Merge) - Sekarang dijamin presisi karena tipe datanya sudah kembar!
+    # 4. GABUNGKAN (Merge)
     df_hibrida = pd.merge(df_hibrida, df_obs[[COL_DATETIME, COL_OBSERVASI]], on=COL_DATETIME, how="left")
 
     return df_hibrida, df_lstm
@@ -299,9 +299,10 @@ def compute_kpis(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> O
 
     return KpiResult(
         reduksi_eror_persen=reduksi_eror,
-        utide=build_metrik("UTIDE", rmse_utide, COLOR_PALETTE["utide"]),
-        lstm=build_metrik("LSTM", rmse_lstm, COLOR_PALETTE["lstm"]),
-        hibrida=build_metrik("HIBRIDA", rmse_hibrida, COLOR_PALETTE["hibrida"]),
+        # Untuk metrik card, kita panggil warna solid dari dictionary agar teks mudah dibaca
+        utide=build_metrik("UTIDE", rmse_utide, "#00C2FF"),
+        lstm=build_metrik("LSTM", rmse_lstm, "#FF2D95"),
+        hibrida=build_metrik("HIBRIDA", rmse_hibrida, "#2563EB"),
     )
 
 
@@ -346,9 +347,9 @@ def _render_metric_card(column, label: str, value_html: str, border_color: str) 
 def render_kpi_cards(kpi: KpiResult) -> None:
     col1, col2, col3, col4 = st.columns(4)
     _render_metric_card(col1, "📈 REDUKSI EROR (vs UTide)", f'{kpi.reduksi_eror_persen:.2f} % <span style="color: #22c55e; font-size: 0.68rem; font-weight: bold;">▲ OPTIMAL</span>', COLOR_PALETTE["success"])
-    _render_metric_card(col2, "📉 RMSE UTIDE MURNI", f"{kpi.utide.rmse:.2f} cm {_metrik_badge(kpi.utide)}", "#00C2FF")
-    _render_metric_card(col3, "📊 RMSE LSTM MURNI", f"{kpi.lstm.rmse:.2f} cm {_metrik_badge(kpi.lstm)}", "#FF2D95")
-    _render_metric_card(col4, "🏆 RMSE HIBRIDA", f"{kpi.hibrida.rmse:.2f} cm {_metrik_badge(kpi.hibrida)}", "#7C3AED")
+    _render_metric_card(col2, "📉 RMSE UTIDE MURNI", f"{kpi.utide.rmse:.2f} cm {_metrik_badge(kpi.utide)}", kpi.utide.warna)
+    _render_metric_card(col3, "📊 RMSE LSTM MURNI", f"{kpi.lstm.rmse:.2f} cm {_metrik_badge(kpi.lstm)}", kpi.lstm.warna)
+    _render_metric_card(col4, "🏆 RMSE HIBRIDA", f"{kpi.hibrida.rmse:.2f} cm {_metrik_badge(kpi.hibrida)}", kpi.hibrida.warna)
 
 
 def render_empty_kpi_cards() -> None:
@@ -387,38 +388,37 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
     # 0. Pita gradasi level siaga di lapisan paling belakang
     _add_alert_zones(fig)
 
-    # --- Garis prediksi digambar dulu (transparan), observasi digambar
-    #     terakhir di atas (solid) supaya perpotongan antar garis tetap terlihat.
+    # --- URUTAN TRACE DIRUBAH (PLOTLY MENGGAMBAR DARI BAWAH KE ATAS) ---
+    # 1. Observasi Historis digambar PERTAMA agar menjadi Layer Paling Dasar (Baseline).
+    #    Garisnya dibikin sedikit lebih tebal (width=3.5) agar menonjol sebagai fondasi.
+    if df_filtered[COL_OBSERVASI].notna().sum() > 0:
+        fig.add_trace(go.Scatter(
+            x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI],
+            mode="lines", name="Observasi Stasiun (TMA Aktual)",
+            line=dict(color=COLOR_PALETTE["observasi"], width=3.5, shape="spline", smoothing=0.9),
+            connectgaps=False,
+        ))
 
-    # 1. Prediksi UTide Murni (transparan, smooth)
+    # 2. Prediksi UTide Murni (Transparan 50%, numpang di atas observasi)
     fig.add_trace(go.Scatter(
         x=df_filtered[COL_DATETIME], y=df_filtered[COL_UTIDE],
         mode="lines", name="Prediksi UTide Murni (Astronomis)",
         line=dict(color=COLOR_PALETTE["utide"], width=2.4, shape="spline", smoothing=0.9),
     ))
 
-    # 2. Prediksi LSTM Murni (transparan, smooth)
+    # 3. Prediksi LSTM Murni (Transparan 50%, numpang di atas observasi)
     fig.add_trace(go.Scatter(
         x=df_lstm_filtered[COL_DATETIME], y=df_lstm_filtered[COL_LSTM],
         mode="lines", name="Prediksi LSTM Murni (Non-Astronomis)",
         line=dict(color=COLOR_PALETTE["lstm"], width=2.4, shape="spline", smoothing=0.9),
     ))
 
-    # 3. Prediksi Hibrida (transparan, smooth)
+    # 4. Prediksi Hibrida (Transparan 60%, numpang paling atas agar menonjol)
     fig.add_trace(go.Scatter(
         x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA],
         mode="lines", name="Prediksi Hibrida (UTide + LSTM)",
         line=dict(color=COLOR_PALETTE["hibrida"], width=3.0, shape="spline", smoothing=0.9),
     ))
-
-    # 4. Observasi Historis - SOLID, di lapisan paling atas
-    if df_filtered[COL_OBSERVASI].notna().sum() > 0:
-        fig.add_trace(go.Scatter(
-            x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI],
-            mode="lines", name="Observasi Stasiun (TMA Aktual)",
-            line=dict(color=COLOR_PALETTE["observasi"], width=2.6, shape="spline", smoothing=0.9),
-            connectgaps=False,
-        ))
 
     # 5. Garis vertikal waktu sekarang
     if data_dsda and data_dsda["tma"] is not None:
