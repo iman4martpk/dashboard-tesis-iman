@@ -5,7 +5,7 @@ Aplikasi Streamlit ini menampilkan perbandingan performa pendekatan
 prediksi pasang surut air laut dengan data observasi independen secara REAL-TIME.
 """
 
-from __future__ import annotations
+from __future annotations
 
 import re
 from dataclasses import dataclass
@@ -339,11 +339,11 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict])
     fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (Integrasi Keduanya)", line=dict(color=COLOR_PALETTE["hibrida"], width=2.0, shape="spline", smoothing=0.9)))
 
     if data_dsda and data_dsda["tma"] is not None:
-        waktu_sekarang_jam = get_now_jkt().replace(minute=0, second=0, microsecond=0)
+        # 🔥 FIX: Diubah menjadi get_now_jkt() murni tanpa pembulatan jam, agar menitnya tampil riil
+        waktu_sekarang_jam = get_now_jkt()
         min_date = df_filtered[COL_DATETIME].min()
         max_date = df_filtered[COL_DATETIME].max()
         if pd.notna(min_date) and pd.notna(max_date) and min_date <= waktu_sekarang_jam <= max_date:
-            # Format label string agar menampilkan jam menit aktual secara dinamis (Misal: "18:00 WIB")
             jam_menit_str = waktu_sekarang_jam.strftime("%H:%M")
             fig.add_vline(
                 x=waktu_sekarang_jam, 
