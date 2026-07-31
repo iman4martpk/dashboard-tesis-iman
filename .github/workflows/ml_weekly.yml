@@ -32,7 +32,7 @@ jobs:
           pip install pandas numpy plotly requests lxml tensorflow scikit-learn streamlit
           
       - name: 🧠 Eksekusi Script Training Model LSTM
-        run: python train_weekly.py 
+        run: python retrain_and_forecast.py 
         
       - name: 📤 Commit & Push Update Model Baru
         run: |
