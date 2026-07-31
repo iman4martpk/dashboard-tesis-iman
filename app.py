@@ -1,7 +1,7 @@
 """
 Dashboard Monitoring Pasut Hibrida (UTide + LSTM) - Stasiun Pasar Ikan, Jakarta.
 
-Aplikasi Streamlit ini menampilkan perbandingan performa tiga metode
+Aplikasi Streamlit ini menampilkan perbandingan performa pendekatan
 prediksi pasang surut air laut dengan data observasi independen secara REAL-TIME.
 """
 
@@ -263,17 +263,17 @@ def compute_kpis(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> O
 
 
 # =========================================================================
-# 5. UI RENDERING (GRAFIK & TABEL)
+# 5. UI RENDERING (GRAFIK & TABEL MENTAH)
 # =========================================================================
 def render_header() -> None:
-    st.markdown("""<div class="header-text"><h2 style="margin: 0; color: #0F172A; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 1.55rem;">🌊 Dashboard Tesis: Prediksi Pasang Surut (Harmonic vs Hibrida vs LSTM) Jakarta • Iman, S.Si.</h2></div>""", unsafe_allow_html=True)
+    st.markdown("""<div class="header-text"><h2 style="margin: 0; color: #0F172A; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 1.55rem;">🌊 Dashboard Tesis: Peramalan Pasang Surut Hibrida Jakarta • Iman, S.Si.</h2></div>""", unsafe_allow_html=True)
 
 def render_summary_box(pilihan_mode: str, data_dsda: Optional[dict]) -> None:
     info_realtime = f" | 🔴 <b>DSDA Real-time ({data_dsda['jam']}):</b> <span style='color:#DC2626;'>{data_dsda['tma']} cm</span>" if data_dsda else " | 🔴 <b>DSDA Real-time:</b> <span style='color:#64748B;'>Offline/Delay</span>"
     st.markdown(f"""<div class="summary-box"><span class="summary-text">📍 <b>Stasiun:</b> Pasar Ikan, Jakarta | 🛡️ <b>Mode:</b> {PRESETS[pilihan_mode]['desc']}{info_realtime}</span></div>""", unsafe_allow_html=True)
 
 def _metrik_badge(metrik: MetodeMetrik) -> str:
-    if metrik.is_terbaik: return '<span style="color: #22c55e; font-size: 0.65rem; font-weight: bold;">🏆 AKURASI TERTINGGI</span>'
+    if metrik.is_terbaik: return '<span style="color: #22c55e; font-size: 0.65rem; font-weight: bold;">🏆 TERENDAH</span>'
     return f'<span style="color: #ef4444; font-size: 0.65rem; font-weight: bold;">+{metrik.selisih_dari_terbaik:.1f} cm vs Terbaik</span>'
 
 def _render_metric_card(column, label: str, value_html: str, border_color: str) -> None:
@@ -282,9 +282,9 @@ def _render_metric_card(column, label: str, value_html: str, border_color: str) 
 def render_kpi_cards(kpi: KpiResult) -> None:
     col1, col2, col3, col4 = st.columns(4)
     _render_metric_card(col1, "📈 REDUKSI EROR (vs UTide)", f'{kpi.reduksi_eror_persen:.2f} % <span style="color: #22c55e; font-size: 0.68rem; font-weight: bold;">▲ OPTIMAL</span>', COLOR_PALETTE["success"])
-    _render_metric_card(col2, "📉 RMSE UTIDE MURNI", f"{kpi.utide.rmse:.2f} cm {_metrik_badge(kpi.utide)}", kpi.utide.warna)
-    _render_metric_card(col3, "📊 RMSE LSTM MURNI", f"{kpi.lstm.rmse:.2f} cm {_metrik_badge(kpi.lstm)}", kpi.lstm.warna)
-    _render_metric_card(col4, "🏆 RMSE HIBRIDA", f"{kpi.hibrida.rmse:.2f} cm {_metrik_badge(kpi.hibrida)}", kpi.hibrida.warna)
+    _render_metric_card(col2, "📉 RMSE UTIDE (Astronomis)", f"{kpi.utide.rmse:.2f} cm {_metrik_badge(kpi.utide)}", kpi.utide.warna)
+    _render_metric_card(col3, "📊 RMSE LSTM (Data-Driven)", f"{kpi.lstm.rmse:.2f} cm {_metrik_badge(kpi.lstm)}", kpi.lstm.warna)
+    _render_metric_card(col4, "🏆 RMSE HIBRIDA (Integrasi)", f"{kpi.hibrida.rmse:.2f} cm {_metrik_badge(kpi.hibrida)}", kpi.hibrida.warna)
 
 def _add_alert_zones(fig: go.Figure, dynamic_min: float, dynamic_max: float) -> None:
     for y0, y1, warna, label, opacity in ALERT_ZONES:
@@ -312,9 +312,9 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
     if df_filtered[COL_OBSERVASI].notna().sum() > 0:
         fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI], mode="lines", name="Observasi Stasiun (TMA Aktual)", line=dict(color=COLOR_PALETTE["observasi"], width=2.5, shape="spline", smoothing=0.9), connectgaps=False))
 
-    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_UTIDE], mode="lines", name="Prediksi UTide Murni (Astronomis)", line=dict(color=COLOR_PALETTE["utide"], width=1.5, shape="spline", smoothing=0.9)))
-    fig.add_trace(go.Scatter(x=df_lstm_filtered[COL_DATETIME], y=df_lstm_filtered[COL_LSTM], mode="lines", name="Prediksi LSTM Murni (Non-Astronomis)", line=dict(color=COLOR_PALETTE["lstm"], width=1.5, shape="spline", smoothing=0.9)))
-    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (UTide + LSTM)", line=dict(color=COLOR_PALETTE["hibrida"], width=2.0, shape="spline", smoothing=0.9)))
+    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_UTIDE], mode="lines", name="Prediksi UTide (Pendekatan Astronomis)", line=dict(color=COLOR_PALETTE["utide"], width=1.5, shape="spline", smoothing=0.9)))
+    fig.add_trace(go.Scatter(x=df_lstm_filtered[COL_DATETIME], y=df_lstm_filtered[COL_LSTM], mode="lines", name="Prediksi LSTM (Pendekatan Data-Driven)", line=dict(color=COLOR_PALETTE["lstm"], width=1.5, shape="spline", smoothing=0.9)))
+    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (Integrasi Keduanya)", line=dict(color=COLOR_PALETTE["hibrida"], width=2.0, shape="spline", smoothing=0.9)))
 
     if data_dsda and data_dsda["tma"] is not None:
         waktu_sekarang_jam = datetime.now().replace(minute=0, second=0, microsecond=0)
@@ -352,8 +352,8 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame
     # Banner Header Profesional
     st.markdown("""
         <div class="eval-box">
-            <h3 style='color:#1E293B; font-size: 18px; margin: 0px;'>🔬 Analisis Kinerja Model (Evaluasi Tesis)</h3>
-            <p style='color:#64748b; font-size: 13px; margin: 5px 0 0 0;'>Modul perhitungan metrik akurasi (Akurasi, RMSE, MAE, Korelasi Pearson) untuk validasi performa prediksi.</p>
+            <h3 style='color:#1E293B; font-size: 18px; margin: 0px;'>🔬 Analisis Kinerja Peramalan (Evaluasi Tesis)</h3>
+            <p style='color:#64748b; font-size: 13px; margin: 5px 0 0 0;'>Modul perhitungan metrik akurasi (Akurasi, RMSE, MAE, Korelasi Pearson) untuk membuktikan peningkatan performa hasil observasi.</p>
         </div>
     """, unsafe_allow_html=True)
     
@@ -428,9 +428,13 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame
     rmse_l, mae_l, corr_l, acc_l = calc_metrics(lstm)
     rmse_h, mae_h, corr_h, acc_h = calc_metrics(hibrida)
 
-    # ---------------- BIKIN TABEL METRIK ----------------
+    # ---------------- BIKIN TABEL METRIK (ISTILAH BARU) ----------------
     df_metrics = pd.DataFrame({
-        "Metode Prediksi": ["Harmonik (UTide)", "LSTM Murni", "Hibrida (UTide + LSTM)"],
+        "Pendekatan Peramalan": [
+            "Harmonik UTide (Astronomis Konvensional)", 
+            "LSTM Murni (Model Data-Driven)", 
+            "Hibrida UTide+LSTM (Integrasi Residual)"
+        ],
         "Akurasi (%) ↑": [acc_u, acc_l, acc_h],
         "RMSE (cm) ↓": [rmse_u, rmse_l, rmse_h],
         "MAE (cm) ↓": [mae_u, mae_l, mae_h],
@@ -438,7 +442,7 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame
     })
 
     best_rmse = df_metrics["RMSE (cm) ↓"].min()
-    best_method = df_metrics.loc[df_metrics["RMSE (cm) ↓"] == best_rmse, "Metode Prediksi"].values[0]
+    best_method = df_metrics.loc[df_metrics["RMSE (cm) ↓"] == best_rmse, "Pendekatan Peramalan"].values[0]
     impr_utide = ((rmse_u - rmse_h) / rmse_u) * 100 if rmse_u else 0
     
     st.markdown(f"*(Data divalidasi berdasarkan sampel **{len(obs)} jam observasi aktual**)*")
@@ -453,12 +457,12 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_lstm_master: pd.DataFrame
         hide_index=True
     )
     
-    # Generate Paragraf Kesimpulan Otomatis
-    if best_method == "Hibrida (UTide + LSTM)":
-        kesimpulan = f"**Interpretasi Hasil:** Berdasarkan perhitungan metrik di atas, model **Hibrida** terbukti memberikan performa peramalan paling akurat dengan tingkat *Root Mean Square Error* (RMSE) terendah sebesar **{best_rmse:.2f} cm**. Penggunaan pendekatan residual ini berhasil meningkatkan akurasi secara signifikan dan mereduksi tingkat kesalahan prediksi astronomis murni (UTide) sebesar **{impr_utide:.1f}%**."
+    # Generate Paragraf Kesimpulan Otomatis (Academic Framing)
+    if "Hibrida" in best_method:
+        kesimpulan = f"**Interpretasi Akademis:** Berdasarkan metrik evaluasi di atas, pendekatan **Hibrida UTide+LSTM (Integrasi Residual)** terbukti memberikan performa peramalan paling akurat dengan tingkat *Root Mean Square Error* (RMSE) terendah sebesar **{best_rmse:.2f} cm**. Penggunaan model pembelajaran mesin *data-driven* ini berhasil menangkap pola anomali non-astronomis dan mampu mereduksi tingkat kesalahan dari pendekatan astronomis murni (UTide) secara signifikan sebesar **{impr_utide:.1f}%**."
         st.success(kesimpulan, icon="✅")
     else:
-        kesimpulan = f"**Interpretasi Hasil:** Pada rentang pengujian data saat ini, model **{best_method}** menunjukkan kinerja paling optimal dibandingkan metode lain dengan nilai RMSE sebesar **{best_rmse:.2f} cm**."
+        kesimpulan = f"**Interpretasi Akademis:** Pada rentang observasi saat ini, pendekatan **{best_method}** menunjukkan kinerja paling presisi dibandingkan pendekatan lain dengan nilai hamburan eror (RMSE) sebesar **{best_rmse:.2f} cm**."
         st.info(kesimpulan, icon="ℹ️")
 
 
