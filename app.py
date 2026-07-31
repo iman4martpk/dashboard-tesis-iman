@@ -44,13 +44,11 @@ COLOR_PALETTE = {
     "danger": "#ef4444",
     # Garis: observasi solid gelap, prediksi transparan (dipakai lewat rgba di bawah)
     "observasi": "#0F172A",       # slate-900, solid, garis "kebenaran lapangan"
-    "utide": "rgba(0, 194, 255, 0.55)",     # cyan elektrik, transparan
-    "lstm": "rgba(255, 45, 149, 0.55)",     # magenta terang, transparan
-    "hibrida": "rgba(124, 58, 237, 0.80)",  # ungu vivid, agak lebih pekat (garis andalan)
+    "utide": "rgba(0, 194, 255, 0.85)",     # cyan elektrik, lebih pekat
+    "lstm": "rgba(255, 45, 149, 0.85)",     # magenta terang, lebih pekat
+    "hibrida": "rgba(124, 58, 237, 0.95)",  # ungu vivid, hampir solid (garis andalan)
     # Pita gradasi level siaga (dipakai di background chart)
-    "siaga3": "#FDE047",   # kuning
-    "siaga2": "#FB923C",   # jingga muda
-    "siaga1": "#EA580C",   # jingga tua
+    "waspada": "#EA580C",  # jingga tua
     "awas": "#DC2626",     # merah
 }
 
@@ -60,9 +58,7 @@ Y_AXIS_MAX = 280
 
 ALERT_ZONES = [
     # (y0, y1, warna, label, opacity)
-    (170, 200, COLOR_PALETTE["siaga3"], "Siaga III", 0.28),
-    (200, 230, COLOR_PALETTE["siaga2"], "Siaga II", 0.30),
-    (230, 250, COLOR_PALETTE["siaga1"], "Siaga I", 0.32),
+    (230, 250, COLOR_PALETTE["waspada"], "WASPADA ROB", 0.32),
     (250, Y_AXIS_MAX, COLOR_PALETTE["awas"], "AWAS ROB", 0.30),
 ]
 
