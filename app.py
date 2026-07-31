@@ -43,11 +43,13 @@ COLOR_PALETTE = {
     "success": "#22c55e",
     "danger": "#ef4444",
     # Garis: observasi solid gelap, prediksi transparan (dipakai lewat rgba di bawah)
-    "observasi": "#0F172A",       # slate-900, solid, garis "kebenaran lapangan"
-    "utide": "rgba(0, 194, 255, 0.85)",     # cyan elektrik, lebih pekat
-    "lstm": "rgba(255, 45, 149, 0.85)",     # magenta terang, lebih pekat
-    "hibrida": "rgba(124, 58, 237, 0.95)",  # ungu vivid, hampir solid (garis andalan)
+    "observasi": "#0F172A",                 # slate-900, 100% solid, garis "kebenaran lapangan"
+    "utide": "rgba(0, 194, 255, 0.50)",     # cyan elektrik, transparan 50%
+    "lstm": "rgba(255, 45, 149, 0.50)",     # magenta terang, transparan 50%
+    "hibrida": "rgba(124, 58, 237, 0.60)",  # ungu vivid, transparan 60% (sedikit lebih tebal sbg andalan)
+    
     # Pita gradasi level siaga (dipakai di background chart)
+    "aman": "#BAE6FD",     # biru muda kalem (sky-200)
     "waspada": "#EA580C",  # jingga tua
     "awas": "#DC2626",     # merah
 }
@@ -58,6 +60,7 @@ Y_AXIS_MAX = 280
 
 ALERT_ZONES = [
     # (y0, y1, warna, label, opacity)
+    (Y_AXIS_MIN, 230, COLOR_PALETTE["aman"], "KONDISI AMAN", 0.25),
     (230, 250, COLOR_PALETTE["waspada"], "WASPADA ROB", 0.32),
     (250, Y_AXIS_MAX, COLOR_PALETTE["awas"], "AWAS ROB", 0.30),
 ]
@@ -285,7 +288,7 @@ def compute_kpis(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> O
 
     rmse_utide = rmse(df_filtered.loc[valid_idx, COL_UTIDE])
     rmse_lstm = rmse(df_lstm_filtered.loc[valid_idx, COL_LSTM])
-    rmse_hibrida = rmse(df_filtered.loc[valid_idx, COL_HIBRIDA])
+    rmse_hibrida = rmse(df_filtered.loc[valid_idx, COL_HIBRida])
 
     reduksi_eror = ((rmse_utide - rmse_hibrida) / rmse_utide) * 100 if rmse_utide > 0 else 0.0
     min_rmse = min(rmse_utide, rmse_lstm, rmse_hibrida)
@@ -401,7 +404,7 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
         line=dict(color=COLOR_PALETTE["lstm"], width=2.4, shape="spline", smoothing=0.9),
     ))
 
-    # 3. Prediksi Hibrida (transparan tapi lebih pekat - garis andalan)
+    # 3. Prediksi Hibrida (transparan, smooth)
     fig.add_trace(go.Scatter(
         x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA],
         mode="lines", name="Prediksi Hibrida (UTide + LSTM)",
