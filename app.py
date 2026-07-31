@@ -343,13 +343,14 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict])
         min_date = df_filtered[COL_DATETIME].min()
         max_date = df_filtered[COL_DATETIME].max()
         if pd.notna(min_date) and pd.notna(max_date) and min_date <= waktu_sekarang_jam <= max_date:
-            # 🔥 FIX & ENHANCEMENT: Memasang garis vertikal dengan teks jangkar "Waktu Sekarang (WIB)"
+            # Format label string agar menampilkan jam menit aktual secara dinamis (Misal: "18:00 WIB")
+            jam_menit_str = waktu_sekarang_jam.strftime("%H:%M")
             fig.add_vline(
                 x=waktu_sekarang_jam, 
                 line_width=1.5, 
                 line_dash="dot", 
                 line_color="#334155",
-                annotation_text=" Waktu Sekarang (WIB)", 
+                annotation_text=f" Waktu Sekarang ({jam_menit_str} WIB)", 
                 annotation_position="top right"
             )
 
