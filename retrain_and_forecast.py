@@ -4,6 +4,15 @@ Pipeline Tesis Otomatis: Auto-Retraining (Fine-Tuning) & Multi-Step Forecasting
 Arsitektur: Seq2Seq LSTM (Encoder-Decoder) 3D Tensor Compatible
 Desain Sistem: 3-File Architecture (Single Source of Truth)
 Status: Environment 100% Synced with Local Machine
+
+Perubahan penting (fix cakupan overwrite forecast):
+- Sebelumnya, blok forecasting melakukan rolling multi-block prediction yang
+  menimpa SELURUH baris masa depan di grid (bisa berbulan-bulan ke depan),
+  dan tiap blok berikutnya memakai hasil prediksi blok sebelumnya sebagai
+  "observasi palsu" -> error menumpuk (forecast drift) semakin jauh ke depan.
+- Sekarang forecasting HANYA menghasilkan & menimpa TEPAT 1 window N_OUTPUT
+  (168 jam / 7 hari) setelah observasi terakhir. Baris di luar window itu
+  (hari ke-8 dan seterusnya) TIDAK disentuh sama sekali, apapun isinya.
 """
 
 import os
@@ -35,7 +44,7 @@ SCALER_LSTM_MURNI = "scaler_tma_pasar_ikan_lstm_murni.save"
 SCALER_RESIDU_HIBRIDA = "scaler_residu_pasar_ikan.save"
 
 N_INPUT = 336   # Jendela ke belakang: 14 hari x 24 jam
-N_OUTPUT = 168  # Jendela ramalan blok: 7 hari x 24 jam
+N_OUTPUT = 168  # Jendela ramalan blok: 7 hari x 24 jam (BATAS overwrite forecast)
 MAX_EPOCHS = 10
 BATCH_SIZE = 128
 
@@ -52,7 +61,6 @@ for file_path in [DATA_FILE_HIBRIDA, DATA_FILE_LSTM, DATA_FILE_OBSERVASI]:
         sys.exit(1)
 
 print("📋 Membaca basis data dari repositori...")
-# MENGGUNAKAN LOGIKA ASLI YANG TERBUKTI BERHASIL
 df_hib = pd.read_csv(DATA_FILE_HIBRIDA, parse_dates=["Datetime"])
 df_lstm = pd.read_csv(DATA_FILE_LSTM, parse_dates=["Datetime"])
 df_obs = pd.read_csv(DATA_FILE_OBSERVASI, parse_dates=["Datetime"])
@@ -71,7 +79,10 @@ if len(df_valid) <= N_INPUT + N_OUTPUT:
     sys.exit(0)
 
 waktu_terakhir_obs = df_valid["Datetime"].iloc[-1]
+horizon_cutoff = waktu_terakhir_obs + timedelta(hours=N_OUTPUT)
 print(f"📌 Batas Data Observasi Lapangan Aktual: {waktu_terakhir_obs}")
+print(f"🎯 Jendela overwrite forecast (TERBATAS): {waktu_terakhir_obs} < t <= {horizon_cutoff}")
+print("   (baris di luar jendela ini tidak akan diubah oleh pipeline ini)")
 
 def prepare_3d_sequences(dataset: np.ndarray, look_back: int, horizon: int) -> tuple[np.ndarray, np.ndarray]:
     """Mengubah array 1D menjadi pasangan tensor 3D untuk arsitektur Encoder-Decoder."""
@@ -90,45 +101,39 @@ print("-" * 50)
 try:
     scaler_tma = joblib.load(SCALER_LSTM_MURNI)
     model_tma = tf.keras.models.load_model(MODEL_LSTM_MURNI)
-    
+
     scaled_tma = scaler_tma.transform(df_valid[["TMA_Pasar_Ikan"]].values.reshape(-1, 1))
     X_lstm, y_lstm = prepare_3d_sequences(scaled_tma, N_INPUT, N_OUTPUT)
     X_lstm = np.reshape(X_lstm, (X_lstm.shape[0], X_lstm.shape[1], 1))
     y_lstm = np.reshape(y_lstm, (y_lstm.shape[0], y_lstm.shape[1], 1))
-    
+
     autostop_tma = EarlyStopping(monitor='loss', patience=2, restore_best_weights=True, verbose=1)
-    
+
     print(f"🏋️ Melatih ulang model via Fine-Tuning (Max: {MAX_EPOCHS} Epoch)...")
     model_tma.fit(X_lstm, y_lstm, epochs=MAX_EPOCHS, batch_size=BATCH_SIZE, callbacks=[autostop_tma], verbose=1)
     model_tma.save(MODEL_LSTM_MURNI)
     print("💾 Otak Model LSTM Murni sukses diamankan.")
-    
-    # 🔥 PENGUNCIAN MASA DEPAN: HANYA MERAMAL 7 HARI (168 JAM)
-    total_future_hours = N_OUTPUT 
-    print(f"🔮 Menghitung peramalan blok Seq2Seq ke depan untuk {total_future_hours} jam (7 Hari)...")
-    
-    current_window = list(scaled_tma[-N_INPUT:].flatten())
-    future_preds_scaled = []
-    hours_predicted = 0
-    
-    while hours_predicted < total_future_hours:
-        input_data = np.array(current_window[-N_INPUT:]).reshape(1, N_INPUT, 1)
-        pred_block = model_tma.predict(input_data, verbose=0)[0, :, 0]
-        future_preds_scaled.extend(list(pred_block))
-        current_window.extend(list(pred_block))
-        hours_predicted += N_OUTPUT
-        
-    future_preds_cm = scaler_tma.inverse_transform(np.array(future_preds_scaled[:total_future_hours]).reshape(-1, 1)).flatten()
-    
-    # 🔥 MEMOTONG UPDATE HANYA UNTUK 7 HARI SAJA (HARI 8 AMAN)
-    waktu_batas_7hari = waktu_terakhir_obs + timedelta(hours=N_OUTPUT)
-    mask_update_7hari = (df_lstm["Datetime"] > waktu_terakhir_obs) & (df_lstm["Datetime"] <= waktu_batas_7hari)
-    
-    df_future_lstm = df_lstm[mask_update_7hari].copy()
-    df_future_lstm["Prediksi_LSTM_Murni"] = future_preds_cm[:len(df_future_lstm)]
-    df_lstm.loc[mask_update_7hari, "Prediksi_LSTM_Murni"] = df_future_lstm["Prediksi_LSTM_Murni"]
-    print("✅ Garis proyeksi Prediksi_LSTM_Murni 7 Hari berhasil diperbarui.")
-    
+
+    # --- Forecast TERBATAS: tepat 1 window N_OUTPUT jam setelah observasi terakhir ---
+    target_mask_lstm = (df_lstm["Datetime"] > waktu_terakhir_obs) & (df_lstm["Datetime"] <= horizon_cutoff)
+    n_target_lstm = int(target_mask_lstm.sum())
+
+    if n_target_lstm == 0:
+        print("⏭️ Tidak ada baris di dalam jendela 7 hari ke depan pada grid. Blok A dilewati.")
+    else:
+        print(f"🔮 Menghitung peramalan Seq2Seq untuk {n_target_lstm} jam ke depan (maks. {N_OUTPUT} jam)...")
+
+        input_data = np.array(scaled_tma[-N_INPUT:].flatten()).reshape(1, N_INPUT, 1)
+        pred_block_scaled = model_tma.predict(input_data, verbose=0)[0, :, 0]
+        pred_block_cm = scaler_tma.inverse_transform(pred_block_scaled.reshape(-1, 1)).flatten()
+
+        # Potong persis sejumlah baris yang benar-benar tersedia dalam jendela 7 hari
+        pred_block_cm = pred_block_cm[:n_target_lstm]
+
+        df_lstm.loc[target_mask_lstm, "Prediksi_LSTM_Murni"] = pred_block_cm
+        print(f"✅ Prediksi_LSTM_Murni diperbarui HANYA untuk {n_target_lstm} baris dalam jendela 7 hari.")
+        print("   Baris setelah jendela ini (hari ke-8 dst.) tidak diubah.")
+
 except Exception as err:
     print(f"❌ Error Terjadi pada Blok A: {err}")
 
@@ -141,49 +146,45 @@ print("-" * 50)
 try:
     scaler_residu = joblib.load(SCALER_RESIDU_HIBRIDA)
     model_hib = tf.keras.models.load_model(MODEL_HIBRIDA)
-    
+
     residu_historis = df_valid["TMA_Pasar_Ikan"].values - df_valid["Prediksi_Harmonik_UTIDE"].values
     scaled_residu = scaler_residu.transform(residu_historis.reshape(-1, 1))
-    
+
     X_res, y_res = prepare_3d_sequences(scaled_residu, N_INPUT, N_OUTPUT)
     X_res = np.reshape(X_res, (X_res.shape[0], X_res.shape[1], 1))
     y_res = np.reshape(y_res, (y_res.shape[0], y_res.shape[1], 1))
-    
+
     autostop_hib = EarlyStopping(monitor='loss', patience=2, restore_best_weights=True, verbose=1)
-    
+
     print(f"🏋️ Melatih ulang model via Fine-Tuning (Max: {MAX_EPOCHS} Epoch)...")
     model_hib.fit(X_res, y_res, epochs=MAX_EPOCHS, batch_size=BATCH_SIZE, callbacks=[autostop_hib], verbose=1)
     model_hib.save(MODEL_HIBRIDA)
     print("💾 Otak Model Residu Hibrida Master sukses diamankan.")
-    
-    # 🔥 PENGUNCIAN MASA DEPAN: HANYA MERAMAL 7 HARI (168 JAM)
-    total_future_hours_hib = N_OUTPUT 
-    print(f"🔮 Menghitung peramalan blok residu Seq2Seq ke depan untuk {total_future_hours_hib} jam (7 Hari)...")
-    
-    current_window_res = list(scaled_residu[-N_INPUT:].flatten())
-    future_res_preds_scaled = []
-    hours_predicted_res = 0
-    
-    while hours_predicted_res < total_future_hours_hib:
-        input_data_res = np.array(current_window_res[-N_INPUT:]).reshape(1, N_INPUT, 1)
-        pred_block_res = model_hib.predict(input_data_res, verbose=0)[0, :, 0]
-        future_res_preds_scaled.extend(list(pred_block_res))
-        current_window_res.extend(list(pred_block_res))
-        hours_predicted_res += N_OUTPUT
-        
-    future_res_preds_cm = scaler_residu.inverse_transform(np.array(future_res_preds_scaled[:total_future_hours_hib]).reshape(-1, 1)).flatten()
-    
-    # 🔥 MEMOTONG UPDATE HANYA UNTUK 7 HARI SAJA (HARI 8 AMAN)
-    waktu_batas_7hari_hib = waktu_terakhir_obs + timedelta(hours=N_OUTPUT)
-    mask_update_7hari_hib = (df_hib["Datetime"] > waktu_terakhir_obs) & (df_hib["Datetime"] <= waktu_batas_7hari_hib)
-    
-    df_future_hib = df_hib[mask_update_7hari_hib].copy()
-    df_future_hib["Residu_LSTM_Pred"] = future_res_preds_cm[:len(df_future_hib)]
-    df_future_hib["Prediksi_Hibrida_Final"] = df_future_hib["Prediksi_Harmonik_UTIDE"] + df_future_hib["Residu_LSTM_Pred"]
-    
-    df_hib.loc[mask_update_7hari_hib, "Prediksi_Hibrida_Final"] = df_future_hib["Prediksi_Hibrida_Final"]
-    print("✅ Garis proyeksi Prediksi_Hibrida_Final 7 Hari berhasil diperbarui.")
-    
+
+    # --- Forecast TERBATAS: tepat 1 window N_OUTPUT jam setelah observasi terakhir ---
+    target_mask_hib = (df_hib["Datetime"] > waktu_terakhir_obs) & (df_hib["Datetime"] <= horizon_cutoff)
+    n_target_hib = int(target_mask_hib.sum())
+
+    if n_target_hib == 0:
+        print("⏭️ Tidak ada baris di dalam jendela 7 hari ke depan pada grid. Blok B dilewati.")
+    else:
+        print(f"🔮 Menghitung peramalan residu Seq2Seq untuk {n_target_hib} jam ke depan (maks. {N_OUTPUT} jam)...")
+
+        input_data_res = np.array(scaled_residu[-N_INPUT:].flatten()).reshape(1, N_INPUT, 1)
+        pred_block_res_scaled = model_hib.predict(input_data_res, verbose=0)[0, :, 0]
+        pred_block_res_cm = scaler_residu.inverse_transform(pred_block_res_scaled.reshape(-1, 1)).flatten()
+
+        # Potong persis sejumlah baris yang benar-benar tersedia dalam jendela 7 hari
+        pred_block_res_cm = pred_block_res_cm[:n_target_hib]
+
+        utide_dalam_jendela = df_hib.loc[target_mask_hib, "Prediksi_Harmonik_UTIDE"].values
+        prediksi_hibrida_final = utide_dalam_jendela + pred_block_res_cm
+
+        df_hib.loc[target_mask_hib, "Residu_LSTM_Pred"] = pred_block_res_cm
+        df_hib.loc[target_mask_hib, "Prediksi_Hibrida_Final"] = prediksi_hibrida_final
+        print(f"✅ Prediksi_Hibrida_Final diperbarui HANYA untuk {n_target_hib} baris dalam jendela 7 hari.")
+        print("   Baris setelah jendela ini (hari ke-8 dst.) tidak diubah.")
+
 except Exception as err:
     print(f"❌ Error Terjadi pada Blok B: {err}")
 
@@ -204,4 +205,5 @@ df_hib.to_csv(DATA_FILE_HIBRIDA, index=False)
 df_lstm.to_csv(DATA_FILE_LSTM, index=False)
 
 print("🎉 [SUCCESS] ALL PIPELINES ARE COMPLETELY SYNCHRONIZED 100% WITH AUTOSTOP!")
+print("   Cakupan overwrite forecast: HANYA 7 hari (168 jam) setelah observasi terakhir.")
 print("=" * 80)
