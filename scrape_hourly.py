@@ -191,10 +191,32 @@ def resolve_target_datetime(now_naive: datetime, jam_str: str) -> pd.Timestamp:
 # --------------------------------------------------------------------------- #
 
 def is_already_recorded(target_ts: pd.Timestamp) -> bool:
+    """
+    Cek apakah target_ts sudah tercatat di file observasi.
+
+    File lama diketahui berisi format datetime yang tidak seragam (mis. baris
+    lama "%m/%d/%Y %H:%M" bercampur dengan baris baru "%Y-%m-%d %H:%M:%S"),
+    jadi parsing memakai format='mixed' + errors='coerce' agar tidak crash,
+    dan baris yang gagal diparse dilaporkan sebagai peringatan (bukan fatal).
+    """
     if not FILE_OBSERVASI.exists():
         return False
+
     df_exist = pd.read_csv(FILE_OBSERVASI, usecols=["Datetime"])
-    existing_dates = pd.to_datetime(df_exist["Datetime"]).dt.tz_localize(None)
+    parsed = pd.to_datetime(df_exist["Datetime"], format="mixed", dayfirst=False, errors="coerce")
+
+    n_invalid = parsed.isna().sum()
+    if n_invalid:
+        log.warning(
+            "%d baris di %s memiliki format Datetime yang tidak bisa diparse dan diabaikan "
+            "saat pengecekan duplikat.",
+            n_invalid, FILE_OBSERVASI.name,
+        )
+
+    existing_dates = parsed.dropna()
+    if existing_dates.dt.tz is not None:
+        existing_dates = existing_dates.dt.tz_localize(None)
+
     return target_ts in existing_dates.values
 
 
