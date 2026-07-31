@@ -60,7 +60,7 @@ Y_AXIS_MAX = 280
 
 ALERT_ZONES = [
     # (y0, y1, warna, label, opacity)
-    (Y_AXIS_MIN, 230, COLOR_PALETTE["aman"], "KONDISI AMAN", 0.25),
+    (Y_AXIS_MIN, 230, COLOR_PALETTE["aman"], " ", 0.25),
     (230, 250, COLOR_PALETTE["waspada"], "WASPADA ROB", 0.32),
     (250, Y_AXIS_MAX, COLOR_PALETTE["awas"], "AWAS ROB", 0.30),
 ]
