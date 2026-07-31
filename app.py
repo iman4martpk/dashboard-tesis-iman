@@ -7,17 +7,17 @@ prediksi pasang surut air laut dengan data observasi independen secara REAL-TIME
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
-from typing import Optional
 from datetime import datetime, timedelta
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import streamlit as st
 import requests
+import streamlit as st
 from lxml import html
-import re
 
 # =========================================================================
 # 1. KONSTANTA & KONFIGURASI GLOBAL
@@ -37,20 +37,34 @@ COL_UTIDE = "Prediksi_Harmonik_UTIDE"
 COL_LSTM = "Prediksi_LSTM_Murni"
 COL_HIBRIDA = "Prediksi_Hibrida_Final"
 
-THRESHOLD_AWAS_ROB = 250
-THRESHOLD_WASPADA_ROB = 230
-
+# --- Palet warna baru (lebih eye-catching) -------------------------------
 COLOR_PALETTE = {
     "primary": "#0B3D4C",
     "success": "#22c55e",
     "danger": "#ef4444",
-    "utide": "#06B6D4",
-    "lstm": "#F59E0B",
-    "hibrida": "#4F46E5",
-    "observasi": "#64748B",
-    "awas_rob": "#DC2626",
-    "waspada_rob": "#D97706",
+    # Garis: observasi solid gelap, prediksi transparan (dipakai lewat rgba di bawah)
+    "observasi": "#0F172A",       # slate-900, solid, garis "kebenaran lapangan"
+    "utide": "rgba(0, 194, 255, 0.55)",     # cyan elektrik, transparan
+    "lstm": "rgba(255, 45, 149, 0.55)",     # magenta terang, transparan
+    "hibrida": "rgba(124, 58, 237, 0.80)",  # ungu vivid, agak lebih pekat (garis andalan)
+    # Pita gradasi level siaga (dipakai di background chart)
+    "siaga3": "#FDE047",   # kuning
+    "siaga2": "#FB923C",   # jingga muda
+    "siaga1": "#EA580C",   # jingga tua
+    "awas": "#DC2626",     # merah
 }
+
+# --- Zona / pita siaga pada grafik (cm) ----------------------------------
+Y_AXIS_MIN = 100
+Y_AXIS_MAX = 280
+
+ALERT_ZONES = [
+    # (y0, y1, warna, label, opacity)
+    (170, 200, COLOR_PALETTE["siaga3"], "Siaga III", 0.28),
+    (200, 230, COLOR_PALETTE["siaga2"], "Siaga II", 0.30),
+    (230, 250, COLOR_PALETTE["siaga1"], "Siaga I", 0.32),
+    (250, Y_AXIS_MAX, COLOR_PALETTE["awas"], "AWAS ROB", 0.30),
+]
 
 # --- LOGIKA DINAMIS 2 HARI KE BELAKANG & 2 HARI KE DEPAN ---
 HARI_INI = datetime.now()
@@ -96,30 +110,61 @@ DEFAULT_PRESET_INDEX = 0
 # =========================================================================
 # 2. FUNGSI SCRAPING REAL-TIME BPBD (CACHE 10 MENIT TETAP AKTIF)
 # =========================================================================
+NAMA_POS_TARGET = "Pasar Ikan"
+TMA_MIN, TMA_MAX = -300, 500
+
+
+def _extract_pasar_ikan_reading(tree: html.HtmlElement) -> Optional[dict]:
+    """
+    Cari baris "Pasar Ikan" secara generik (nama pos & posisi kolom, bukan
+    index baris/kolom tetap) supaya tidak gampang gagal saat markup situs
+    BPBD sedikit berubah.
+    """
+    header_cells = tree.xpath("//table//thead//tr[last()]//*[self::th or self::td]")
+    jam_list = []
+    for cell in header_cells:
+        text = " ".join(cell.itertext())
+        match = re.search(r"\b\d{1,2}:\d{2}\b", text)
+        if match:
+            jam_list.append(match.group())
+    if not jam_list:
+        return None
+    jam = jam_list[0]
+
+    target_rows = tree.xpath(
+        f"//table//tbody//tr[.//*[self::td or self::th]"
+        f"[1][contains(normalize-space(.), '{NAMA_POS_TARGET}')]]"
+    )
+    if not target_rows:
+        return None
+
+    cells = target_rows[0].xpath(".//*[self::td or self::th]")
+    if len(cells) < 2:
+        return None
+
+    value_text = " ".join(cells[1].itertext())
+    match = re.search(r"[-+]?\d+(?:\.\d+)?", value_text)
+    if not match:
+        return None
+    angka_tma = float(match.group())
+
+    if not (TMA_MIN <= angka_tma <= TMA_MAX):
+        return None
+
+    return {"jam": jam, "tma": angka_tma}
+
+
 @st.cache_data(ttl=600)
 def fetch_realtime_data() -> Optional[dict]:
     url = "https://bpbd.jakarta.go.id/waterlevel"
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         tree = html.fromstring(response.content)
-        
-        xpath_jam = '/html/body/main/div/div/article/div/div[2]/div/div[1]/div[1]/div[2]/div/table/thead/tr[2]/td[2]/text()'
-        xpath_tma = '/html/body/main/div/div/article/div/div[2]/div/div[1]/div[1]/div[2]/div/table/tbody/tr[9]/td[2]/text()'
-        
-        jam_mentah = tree.xpath(xpath_jam)
-        tma_mentah = tree.xpath(xpath_tma)
-        
-        if jam_mentah and tma_mentah:
-            jam = jam_mentah[0].strip()
-            teks_tma = tma_mentah[0].strip()
-            match = re.search(r'[-+]?\d+', teks_tma)
-            angka_tma = float(match.group()) if match else None
-            return {"jam": jam, "tma": angka_tma}
+        return _extract_pasar_ikan_reading(tree)
     except Exception:
-        pass
-    return None
+        return None
 
 
 # =========================================================================
@@ -153,31 +198,56 @@ def inject_custom_css() -> None:
         unsafe_allow_html=True,
     )
 
+
+def _parse_datetime_column(series: pd.Series) -> pd.Series:
+    """
+    Parsing Datetime yang tahan terhadap format campuran (mis. file lama
+    berformat "%m/%d/%Y %H:%M" bercampur dengan baris baru dari scraper yang
+    berformat ISO "%Y-%m-%d %H:%M:%S"). Baris yang gagal diparse dijadikan
+    NaT (bukan meng-crash-kan seluruh aplikasi) lalu dibuang.
+    """
+    parsed = pd.to_datetime(series, format="mixed", dayfirst=False, errors="coerce")
+    n_invalid = parsed.isna().sum()
+    if n_invalid:
+        st.warning(
+            f"⚠️ {n_invalid} baris memiliki format tanggal yang tidak valid dan diabaikan."
+        )
+    if parsed.dt.tz is not None:
+        parsed = parsed.dt.tz_localize(None)
+    return parsed
+
+
 # ⚠️ CACHE DIMATIKAN DI SINI AGAR STREAMLIT SELALU BACA CSV TERBARU DARI GITHUB ⚠️
 def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     # 1. Baca data Prediksi (Grid Utuh)
     df_hibrida = pd.read_csv(DATA_FILE_HIBRIDA)
     df_lstm = pd.read_csv(DATA_FILE_LSTM)
-    
+
     # 2. Baca data Observasi (Independent File)
     try:
         df_obs = pd.read_csv(DATA_FILE_OBSERVASI)
     except FileNotFoundError:
-        df_obs = pd.DataFrame({COL_DATETIME: pd.Series(dtype='datetime64[ns]'), COL_OBSERVASI: pd.Series(dtype='float64')})
+        df_obs = pd.DataFrame({COL_DATETIME: pd.Series(dtype="datetime64[ns]"), COL_OBSERVASI: pd.Series(dtype="float64")})
 
-    # 🔥 PERBAIKAN: Paksa semua kolom Datetime menjadi format datetime murni tanpa timezone
-    df_hibrida[COL_DATETIME] = pd.to_datetime(df_hibrida[COL_DATETIME]).dt.tz_localize(None)
-    df_lstm[COL_DATETIME] = pd.to_datetime(df_lstm[COL_DATETIME]).dt.tz_localize(None)
-    df_obs[COL_DATETIME] = pd.to_datetime(df_obs[COL_DATETIME]).dt.tz_localize(None)
+    # 🔥 Paksa semua kolom Datetime menjadi format datetime murni tanpa timezone,
+    # tahan terhadap format string yang campur-campur (lihat _parse_datetime_column).
+    df_hibrida[COL_DATETIME] = _parse_datetime_column(df_hibrida[COL_DATETIME])
+    df_lstm[COL_DATETIME] = _parse_datetime_column(df_lstm[COL_DATETIME])
+    df_obs[COL_DATETIME] = _parse_datetime_column(df_obs[COL_DATETIME])
+
+    df_hibrida = df_hibrida.dropna(subset=[COL_DATETIME])
+    df_lstm = df_lstm.dropna(subset=[COL_DATETIME])
+    df_obs = df_obs.dropna(subset=[COL_DATETIME])
 
     # 3. Hapus kolom observasi bawaan di df_hibrida jika masih ada (agar tidak bentrok)
     if COL_OBSERVASI in df_hibrida.columns:
         df_hibrida = df_hibrida.drop(columns=[COL_OBSERVASI])
-        
+
     # 4. GABUNGKAN (Merge) - Sekarang dijamin presisi karena tipe datanya sudah kembar!
-    df_hibrida = pd.merge(df_hibrida, df_obs[[COL_DATETIME, COL_OBSERVASI]], on=COL_DATETIME, how='left')
-    
+    df_hibrida = pd.merge(df_hibrida, df_obs[[COL_DATETIME, COL_OBSERVASI]], on=COL_DATETIME, how="left")
+
     return df_hibrida, df_lstm
+
 
 def filter_by_preset(df: pd.DataFrame, preset_name: str, custom_start=None, custom_end=None) -> pd.Series:
     if preset_name == CUSTOM_PRESET_KEY:
@@ -198,6 +268,7 @@ class MetodeMetrik:
     is_terbaik: bool
     selisih_dari_terbaik: float
 
+
 @dataclass
 class KpiResult:
     reduksi_eror_persen: float
@@ -205,27 +276,28 @@ class KpiResult:
     lstm: MetodeMetrik
     hibrida: MetodeMetrik
 
+
 def compute_kpis(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> Optional[KpiResult]:
     valid_idx = df_filtered[COL_OBSERVASI].notna()
-    if valid_idx.sum() == 0: 
+    if valid_idx.sum() == 0:
         return None
-        
+
     observasi = df_filtered.loc[valid_idx, COL_OBSERVASI]
-    
+
     def rmse(prediksi: pd.Series) -> float:
         return float(np.sqrt(np.mean((observasi - prediksi) ** 2)))
-        
+
     rmse_utide = rmse(df_filtered.loc[valid_idx, COL_UTIDE])
     rmse_lstm = rmse(df_lstm_filtered.loc[valid_idx, COL_LSTM])
     rmse_hibrida = rmse(df_filtered.loc[valid_idx, COL_HIBRIDA])
-    
+
     reduksi_eror = ((rmse_utide - rmse_hibrida) / rmse_utide) * 100 if rmse_utide > 0 else 0.0
     min_rmse = min(rmse_utide, rmse_lstm, rmse_hibrida)
-    
+
     def build_metrik(nama: str, rmse_val: float, warna: str) -> MetodeMetrik:
         is_terbaik = rmse_val == min_rmse
         return MetodeMetrik(nama=nama, rmse=rmse_val, warna=warna, is_terbaik=is_terbaik, selisih_dari_terbaik=0.0 if is_terbaik else rmse_val - min_rmse)
-        
+
     return KpiResult(
         reduksi_eror_persen=reduksi_eror,
         utide=build_metrik("UTIDE", rmse_utide, COLOR_PALETTE["utide"]),
@@ -242,6 +314,7 @@ def render_header() -> None:
         """<div class="header-text"><h2 style="margin: 0; color: #0F172A; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 1.55rem;">🌊 MONITORING PASUT HIBRIDA (UTIDE + LSTM) REAL-TIME</h2></div>""",
         unsafe_allow_html=True,
     )
+
 
 def render_summary_box(pilihan_mode: str, data_dsda: Optional[dict]) -> None:
     if data_dsda:
@@ -260,19 +333,24 @@ def render_summary_box(pilihan_mode: str, data_dsda: Optional[dict]) -> None:
         unsafe_allow_html=True,
     )
 
+
 def _metrik_badge(metrik: MetodeMetrik) -> str:
-    if metrik.is_terbaik: return '<span style="color: #22c55e; font-size: 0.65rem; font-weight: bold;">🏆 AKURASI TERTINGGI</span>'
+    if metrik.is_terbaik:
+        return '<span style="color: #22c55e; font-size: 0.65rem; font-weight: bold;">🏆 AKURASI TERTINGGI</span>'
     return f'<span style="color: #ef4444; font-size: 0.65rem; font-weight: bold;">+{metrik.selisih_dari_terbaik:.1f} cm vs Terbaik</span>'
+
 
 def _render_metric_card(column, label: str, value_html: str, border_color: str) -> None:
     column.markdown(f'<div data-testid="stMetric" style="border-left-color: {border_color} !important;"><label data-testid="stMetricLabel">{label}</label><div data-testid="stMetricValue">{value_html}</div></div>', unsafe_allow_html=True)
 
+
 def render_kpi_cards(kpi: KpiResult) -> None:
     col1, col2, col3, col4 = st.columns(4)
     _render_metric_card(col1, "📈 REDUKSI EROR (vs UTide)", f'{kpi.reduksi_eror_persen:.2f} % <span style="color: #22c55e; font-size: 0.68rem; font-weight: bold;">▲ OPTIMAL</span>', COLOR_PALETTE["success"])
-    _render_metric_card(col2, "📉 RMSE UTIDE MURNI", f"{kpi.utide.rmse:.2f} cm {_metrik_badge(kpi.utide)}", COLOR_PALETTE["utide"])
-    _render_metric_card(col3, "📊 RMSE LSTM MURNI", f"{kpi.lstm.rmse:.2f} cm {_metrik_badge(kpi.lstm)}", COLOR_PALETTE["lstm"])
-    _render_metric_card(col4, "🏆 RMSE HIBRIDA", f"{kpi.hibrida.rmse:.2f} cm {_metrik_badge(kpi.hibrida)}", COLOR_PALETTE["hibrida"])
+    _render_metric_card(col2, "📉 RMSE UTIDE MURNI", f"{kpi.utide.rmse:.2f} cm {_metrik_badge(kpi.utide)}", "#00C2FF")
+    _render_metric_card(col3, "📊 RMSE LSTM MURNI", f"{kpi.lstm.rmse:.2f} cm {_metrik_badge(kpi.lstm)}", "#FF2D95")
+    _render_metric_card(col4, "🏆 RMSE HIBRIDA", f"{kpi.hibrida.rmse:.2f} cm {_metrik_badge(kpi.hibrida)}", "#7C3AED")
+
 
 def render_empty_kpi_cards() -> None:
     col1, col2, col3, col4 = st.columns(4)
@@ -281,48 +359,93 @@ def render_empty_kpi_cards() -> None:
     _render_metric_card(col3, "📊 RMSE LSTM MURNI", '<span style="color: #64748B;">No Obs Data</span>', COLOR_PALETTE["observasi"])
     _render_metric_card(col4, "🏆 RMSE HIBRIDA", '<span style="color: #64748B;">No Obs Data</span>', COLOR_PALETTE["observasi"])
 
+
+def _add_alert_zones(fig: go.Figure) -> None:
+    """Gambar pita gradasi level siaga sebagai background chart (bukan garis)."""
+    for y0, y1, warna, label, opacity in ALERT_ZONES:
+        y0_clip = max(y0, Y_AXIS_MIN)
+        y1_clip = min(y1, Y_AXIS_MAX)
+        if y0_clip >= y1_clip:
+            continue
+        fig.add_hrect(
+            y0=y0_clip, y1=y1_clip,
+            fillcolor=warna, opacity=opacity,
+            line_width=0, layer="below",
+        )
+        fig.add_annotation(
+            xref="paper", yref="y",
+            x=0.005, y=(y0_clip + y1_clip) / 2,
+            text=f"<b>{label}</b>",
+            showarrow=False, xanchor="left", yanchor="middle",
+            font=dict(color="#1E293B", size=10, family="Arial"),
+            bgcolor="rgba(255,255,255,0.55)",
+        )
+
+
 def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame, data_dsda: Optional[dict]) -> go.Figure:
     fig = go.Figure()
-    
-    # 1. Kurva Observasi Historis
+
+    # 0. Pita gradasi level siaga di lapisan paling belakang
+    _add_alert_zones(fig)
+
+    # --- Garis prediksi digambar dulu (transparan), observasi digambar
+    #     terakhir di atas (solid) supaya perpotongan antar garis tetap terlihat.
+
+    # 1. Prediksi UTide Murni (transparan, smooth)
+    fig.add_trace(go.Scatter(
+        x=df_filtered[COL_DATETIME], y=df_filtered[COL_UTIDE],
+        mode="lines", name="Prediksi UTide Murni (Astronomis)",
+        line=dict(color=COLOR_PALETTE["utide"], width=2.4, shape="spline", smoothing=0.9),
+    ))
+
+    # 2. Prediksi LSTM Murni (transparan, smooth)
+    fig.add_trace(go.Scatter(
+        x=df_lstm_filtered[COL_DATETIME], y=df_lstm_filtered[COL_LSTM],
+        mode="lines", name="Prediksi LSTM Murni (Non-Astronomis)",
+        line=dict(color=COLOR_PALETTE["lstm"], width=2.4, shape="spline", smoothing=0.9),
+    ))
+
+    # 3. Prediksi Hibrida (transparan tapi lebih pekat - garis andalan)
+    fig.add_trace(go.Scatter(
+        x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA],
+        mode="lines", name="Prediksi Hibrida (UTide + LSTM)",
+        line=dict(color=COLOR_PALETTE["hibrida"], width=3.0, shape="spline", smoothing=0.9),
+    ))
+
+    # 4. Observasi Historis - SOLID, di lapisan paling atas
     if df_filtered[COL_OBSERVASI].notna().sum() > 0:
-        fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI], mode="lines", name="Observasi Stasiun (TMA Aktual)", line=dict(color=COLOR_PALETTE["observasi"], width=2.5), connectgaps=False))
-        
-    # 2. Kurva Prediksi UTide Murni
-    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_UTIDE], mode="lines", name="Prediksi UTide Murni (Astronomis)", line=dict(color=COLOR_PALETTE["utide"], width=2.0, dash="dot")))
-    
-    # 3. Kurva Prediksi LSTM Murni
-    fig.add_trace(go.Scatter(x=df_lstm_filtered[COL_DATETIME], y=df_lstm_filtered[COL_LSTM], mode="lines", name="Prediksi LSTM Murni (Non-Astronomis)", line=dict(color=COLOR_PALETTE["lstm"], width=2.0, dash="dashdot")))
-    
-    # 4. Kurva Prediksi Hibrida
-    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (UTide + LSTM)", line=dict(color=COLOR_PALETTE["hibrida"], width=3.2, dash="dash")))
-    
-    # 5. GARIS VERTIKAL DINAMIS
-    if data_dsda and data_dsda['tma'] is not None:
+        fig.add_trace(go.Scatter(
+            x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI],
+            mode="lines", name="Observasi Stasiun (TMA Aktual)",
+            line=dict(color=COLOR_PALETTE["observasi"], width=2.6, shape="spline", smoothing=0.9),
+            connectgaps=False,
+        ))
+
+    # 5. Garis vertikal waktu sekarang
+    if data_dsda and data_dsda["tma"] is not None:
         waktu_sekarang_jam = datetime.now().replace(minute=0, second=0, microsecond=0)
         min_date = df_filtered[COL_DATETIME].min()
         max_date = df_filtered[COL_DATETIME].max()
-        
-        if min_date <= waktu_sekarang_jam <= max_date:
+
+        if pd.notna(min_date) and pd.notna(max_date) and min_date <= waktu_sekarang_jam <= max_date:
             fig.add_vline(
-                x=waktu_sekarang_jam.timestamp() * 1000, 
-                line_width=1.5, 
-                line_dash="dot", 
-                line_color=COLOR_PALETTE["observasi"]
+                x=waktu_sekarang_jam.timestamp() * 1000,
+                line_width=1.5, line_dash="dot", line_color="#334155",
             )
 
-    fig.add_hline(y=THRESHOLD_AWAS_ROB, line_dash="dash", line_color=COLOR_PALETTE["awas_rob"], line_width=1.5)
-    fig.add_hline(y=THRESHOLD_WASPADA_ROB, line_dash="dash", line_color=COLOR_PALETTE["waspada_rob"], line_width=1.5)
-    fig.add_annotation(xref="paper", yref="y", x=0.005, y=THRESHOLD_AWAS_ROB - 1, text="<b>🚨 AWAS ROB (250 cm)</b>", showarrow=False, xanchor="left", yanchor="top", font=dict(color=COLOR_PALETTE["awas_rob"], size=11, family="Arial"))
-    fig.add_annotation(xref="paper", yref="y", x=0.005, y=THRESHOLD_WASPADA_ROB - 1, text="<b>⚠️ WASPADA ROB (230 cm)</b>", showarrow=False, xanchor="left", yanchor="top", font=dict(color=COLOR_PALETTE["waspada_rob"], size=11, family="Arial"))
-
     fig.update_layout(
-        height=410, template="plotly_white", margin=dict(l=10, r=10, t=25, b=10), hovermode="x unified",
+        height=430, template="plotly_white", margin=dict(l=10, r=10, t=25, b=10), hovermode="x unified",
         hoverlabel=dict(bgcolor="white", font_size=11, font_family="Arial"), xaxis=dict(tickfont=dict(size=10, family="Arial")),
-        yaxis=dict(title=dict(text="Tinggi Air (cm)", font=dict(size=11, family="Arial")), tickfont=dict(size=10, family="Arial")),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, family="Arial")), font=dict(family="Arial, Helvetica, sans-serif", color="#1E293B"),
+        yaxis=dict(
+            title=dict(text="Tinggi Air (cm)", font=dict(size=11, family="Arial")),
+            tickfont=dict(size=10, family="Arial"),
+            range=[Y_AXIS_MIN, Y_AXIS_MAX],
+        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, family="Arial")),
+        font=dict(family="Arial, Helvetica, sans-serif", color="#1E293B"),
     )
     return fig
+
 
 def render_data_table(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> None:
     st.divider()
@@ -334,10 +457,10 @@ def render_data_table(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame)
         COL_LSTM: df_lstm_filtered[COL_LSTM].values,
         COL_HIBRIDA: df_filtered[COL_HIBRIDA],
     })
-    
-    st.dataframe(df_tampilan.reset_index(drop=True), width='stretch')
+
+    st.dataframe(df_tampilan.reset_index(drop=True), width="stretch")
     csv_data = df_tampilan.to_csv(index=False).encode("utf-8")
-    st.download_button(label="📥 Unduh Data Potongan Kerja Ini (.CSV)", data=csv_data, file_name="DATA_INSPEKSI_PASUT_HIBRIDA.csv", mime="text/csv", width='stretch')
+    st.download_button(label="📥 Unduh Data Potongan Kerja Ini (.CSV)", data=csv_data, file_name="DATA_INSPEKSI_PASUT_HIBRIDA.csv", mime="text/csv", width="stretch")
 
 
 # =========================================================================
@@ -354,10 +477,11 @@ def render_sidebar_controls(df: pd.DataFrame) -> tuple[str, Optional[object], Op
         custom_end = st.sidebar.date_input("Tanggal Selesai", max_date, min_value=min_date, max_value=max_date)
     return pilihan_mode, custom_start, custom_end
 
+
 def main() -> None:
     st.set_page_config(page_title=PAGE_TITLE, layout="wide", page_icon=PAGE_ICON, initial_sidebar_state="expanded")
     inject_custom_css()
-    
+
     data_dsda = fetch_realtime_data()
 
     try:
@@ -387,14 +511,15 @@ def main() -> None:
         <div style="display: flex; align-items: baseline; margin: 8px 0 3px 0;">
             <h3 style="margin:0; padding:0; font-size:19px; font-weight:600; color:#1E293B;">📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>
         </div>
-        """, 
-        unsafe_allow_html=True
+        """,
+        unsafe_allow_html=True,
     )
-    
+
     fig = build_comparison_chart(df_filtered, df_lstm_filtered, data_dsda)
-    
-    st.plotly_chart(fig, width='stretch', config={"displayModeBar": False})
+
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
     render_data_table(df_filtered, df_lstm_filtered)
+
 
 if __name__ == "__main__":
     main()
