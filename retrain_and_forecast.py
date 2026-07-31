@@ -3,7 +3,7 @@
 Pipeline Tesis Otomatis: Auto-Retraining (Fine-Tuning) & Multi-Step Forecasting
 Arsitektur: Seq2Seq LSTM (Encoder-Decoder) 3D Tensor Compatible
 Desain Sistem: 3-File Architecture (Single Source of Truth)
-Status: Environment 100% Synced with Local Machine (Optimized Horizon)
+Status: Environment 100% Synced with Local Machine
 """
 
 import os
@@ -52,6 +52,7 @@ for file_path in [DATA_FILE_HIBRIDA, DATA_FILE_LSTM, DATA_FILE_OBSERVASI]:
         sys.exit(1)
 
 print("📋 Membaca basis data dari repositori...")
+# MENGGUNAKAN LOGIKA ASLI YANG TERBUKTI BERHASIL
 df_hib = pd.read_csv(DATA_FILE_HIBRIDA, parse_dates=["Datetime"])
 df_lstm = pd.read_csv(DATA_FILE_LSTM, parse_dates=["Datetime"])
 df_obs = pd.read_csv(DATA_FILE_OBSERVASI, parse_dates=["Datetime"])
@@ -102,15 +103,14 @@ try:
     model_tma.save(MODEL_LSTM_MURNI)
     print("💾 Otak Model LSTM Murni sukses diamankan.")
     
-    # 🛑 MODIFIKASI: Pangkas target jam, murni hanya meramal 7 hari (168 jam) ke depan
-    total_future_hours = N_OUTPUT
-    print(f"🔮 [HIGH SPEED] Menghitung peramalan blok Seq2Seq hanya untuk {total_future_hours} jam ke depan...")
+    # 🔥 PENGUNCIAN MASA DEPAN: HANYA MERAMAL 7 HARI (168 JAM)
+    total_future_hours = N_OUTPUT 
+    print(f"🔮 Menghitung peramalan blok Seq2Seq ke depan untuk {total_future_hours} jam (7 Hari)...")
     
     current_window = list(scaled_tma[-N_INPUT:].flatten())
     future_preds_scaled = []
     hours_predicted = 0
     
-    # Looping ini sekarang hanya akan berjalan tepat 1 KALI (Sangat hemat resource)
     while hours_predicted < total_future_hours:
         input_data = np.array(current_window[-N_INPUT:]).reshape(1, N_INPUT, 1)
         pred_block = model_tma.predict(input_data, verbose=0)[0, :, 0]
@@ -120,17 +120,14 @@ try:
         
     future_preds_cm = scaler_tma.inverse_transform(np.array(future_preds_scaled[:total_future_hours]).reshape(-1, 1)).flatten()
     
-    # 🔒 LOGIKA MASKING 7 HARI: Kunci agar hanya menimpa rentang Hari 0 s/d Hari 7
+    # 🔥 MEMOTONG UPDATE HANYA UNTUK 7 HARI SAJA (HARI 8 AMAN)
     waktu_batas_7hari = waktu_terakhir_obs + timedelta(hours=N_OUTPUT)
     mask_update_7hari = (df_lstm["Datetime"] > waktu_terakhir_obs) & (df_lstm["Datetime"] <= waktu_batas_7hari)
     
     df_future_lstm = df_lstm[mask_update_7hari].copy()
     df_future_lstm["Prediksi_LSTM_Murni"] = future_preds_cm[:len(df_future_lstm)]
-    
-    # Suntikkan data baru hanya pada jendela mask 7 hari, sisa hari setelahnya tetap utuh (Statis)
     df_lstm.loc[mask_update_7hari, "Prediksi_LSTM_Murni"] = df_future_lstm["Prediksi_LSTM_Murni"]
-    print("✅ Garis proyeksi DYNAMIC (Hari 0-7) Prediksi_LSTM_Murni berhasil diperbarui.")
-    print("🔒 Hari ke-8 s.d Desember 2026 sukses dikunci sesuai master baseline.")
+    print("✅ Garis proyeksi Prediksi_LSTM_Murni 7 Hari berhasil diperbarui.")
     
 except Exception as err:
     print(f"❌ Error Terjadi pada Blok A: {err}")
@@ -159,15 +156,14 @@ try:
     model_hib.save(MODEL_HIBRIDA)
     print("💾 Otak Model Residu Hibrida Master sukses diamankan.")
     
-    # 🛑 MODIFIKASI: Pangkas target jam, murni hanya meramal 7 hari (168 jam) ke depan
-    total_future_hours_hib = N_OUTPUT
-    print(f"🔮 [HIGH SPEED] Menghitung peramalan blok residu Seq2Seq hanya untuk {total_future_hours_hib} jam ke depan...")
+    # 🔥 PENGUNCIAN MASA DEPAN: HANYA MERAMAL 7 HARI (168 JAM)
+    total_future_hours_hib = N_OUTPUT 
+    print(f"🔮 Menghitung peramalan blok residu Seq2Seq ke depan untuk {total_future_hours_hib} jam (7 Hari)...")
     
     current_window_res = list(scaled_residu[-N_INPUT:].flatten())
     future_res_preds_scaled = []
     hours_predicted_res = 0
     
-    # Looping ini sekarang hanya akan berjalan tepat 1 KALI (Sangat hemat resource)
     while hours_predicted_res < total_future_hours_hib:
         input_data_res = np.array(current_window_res[-N_INPUT:]).reshape(1, N_INPUT, 1)
         pred_block_res = model_hib.predict(input_data_res, verbose=0)[0, :, 0]
@@ -177,7 +173,7 @@ try:
         
     future_res_preds_cm = scaler_residu.inverse_transform(np.array(future_res_preds_scaled[:total_future_hours_hib]).reshape(-1, 1)).flatten()
     
-    # 🔒 LOGIKA MASKING 7 HARI: Kunci agar hanya menimpa rentang Hari 0 s/d Hari 7
+    # 🔥 MEMOTONG UPDATE HANYA UNTUK 7 HARI SAJA (HARI 8 AMAN)
     waktu_batas_7hari_hib = waktu_terakhir_obs + timedelta(hours=N_OUTPUT)
     mask_update_7hari_hib = (df_hib["Datetime"] > waktu_terakhir_obs) & (df_hib["Datetime"] <= waktu_batas_7hari_hib)
     
@@ -185,10 +181,8 @@ try:
     df_future_hib["Residu_LSTM_Pred"] = future_res_preds_cm[:len(df_future_hib)]
     df_future_hib["Prediksi_Hibrida_Final"] = df_future_hib["Prediksi_Harmonik_UTIDE"] + df_future_hib["Residu_LSTM_Pred"]
     
-    # Suntikkan data baru hanya pada jendela mask 7 hari, sisa hari setelahnya tetap utuh (Statis)
     df_hib.loc[mask_update_7hari_hib, "Prediksi_Hibrida_Final"] = df_future_hib["Prediksi_Hibrida_Final"]
-    print("✅ Garis proyeksi DYNAMIC (Hari 0-7) Prediksi_Hibrida_Final berhasil diperbarui.")
-    print("🔒 Hari ke-8 s.d Desember 2026 sukses dikunci sesuai master baseline.")
+    print("✅ Garis proyeksi Prediksi_Hibrida_Final 7 Hari berhasil diperbarui.")
     
 except Exception as err:
     print(f"❌ Error Terjadi pada Blok B: {err}")
