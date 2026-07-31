@@ -156,21 +156,25 @@ def inject_custom_css() -> None:
 # ⚠️ CACHE DIMATIKAN DI SINI AGAR STREAMLIT SELALU BACA CSV TERBARU DARI GITHUB ⚠️
 def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     # 1. Baca data Prediksi (Grid Utuh)
-    df_hibrida = pd.read_csv(DATA_FILE_HIBRIDA, parse_dates=[COL_DATETIME])
-    df_lstm = pd.read_csv(DATA_FILE_LSTM, parse_dates=[COL_DATETIME])
+    df_hibrida = pd.read_csv(DATA_FILE_HIBRIDA)
+    df_lstm = pd.read_csv(DATA_FILE_LSTM)
     
     # 2. Baca data Observasi (Independent File)
     try:
-        df_obs = pd.read_csv(DATA_FILE_OBSERVASI, parse_dates=[COL_DATETIME])
+        df_obs = pd.read_csv(DATA_FILE_OBSERVASI)
     except FileNotFoundError:
-        # Jika file belum ada, buat dataframe kosong untuk mencegah error
         df_obs = pd.DataFrame({COL_DATETIME: pd.Series(dtype='datetime64[ns]'), COL_OBSERVASI: pd.Series(dtype='float64')})
+
+    # 🔥 PERBAIKAN: Paksa semua kolom Datetime menjadi format datetime murni tanpa timezone
+    df_hibrida[COL_DATETIME] = pd.to_datetime(df_hibrida[COL_DATETIME]).dt.tz_localize(None)
+    df_lstm[COL_DATETIME] = pd.to_datetime(df_lstm[COL_DATETIME]).dt.tz_localize(None)
+    df_obs[COL_DATETIME] = pd.to_datetime(df_obs[COL_DATETIME]).dt.tz_localize(None)
 
     # 3. Hapus kolom observasi bawaan di df_hibrida jika masih ada (agar tidak bentrok)
     if COL_OBSERVASI in df_hibrida.columns:
         df_hibrida = df_hibrida.drop(columns=[COL_OBSERVASI])
         
-    # 4. GABUNGKAN (Merge) berdasarkan Datetime. Gap/bolong otomatis jadi NaN.
+    # 4. GABUNGKAN (Merge) - Sekarang dijamin presisi karena tipe datanya sudah kembar!
     df_hibrida = pd.merge(df_hibrida, df_obs[[COL_DATETIME, COL_OBSERVASI]], on=COL_DATETIME, how='left')
     
     return df_hibrida, df_lstm
