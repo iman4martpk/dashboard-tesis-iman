@@ -5,31 +5,41 @@ Arsitektur: Seq2Seq LSTM (Encoder-Decoder) 3D Tensor Compatible
 Desain Sistem: 3-File Architecture (Single Source of Truth)
 Status: Environment 100% Synced with Local Machine
 
-Perubahan penting (fix cakupan overwrite forecast):
-- Sebelumnya, blok forecasting melakukan rolling multi-block prediction yang
-  menimpa SELURUH baris masa depan di grid (bisa berbulan-bulan ke depan),
-  dan tiap blok berikutnya memakai hasil prediksi blok sebelumnya sebagai
-  "observasi palsu" -> error menumpuk (forecast drift) semakin jauh ke depan.
-- Sekarang forecasting HANYA menghasilkan & menimpa TEPAT 1 window N_OUTPUT
-  (168 jam / 7 hari) setelah observasi terakhir. Baris di luar window itu
-  (hari ke-8 dan seterusnya) TIDAK disentuh sama sekali, apapun isinya.
+Catatan perubahan penting:
+1. [FIX MERGE CRASH] Parsing kolom Datetime tidak lagi memakai
+   pd.read_csv(..., parse_dates=[...]) yang gagal diam-diam saat format
+   tanggal di CSV bercampur (mis. legacy "%m/%d/%Y %H:%M" vs baris baru
+   dari scraper "%Y-%m-%d %H:%M:%S") -> kolom tertinggal jadi string ->
+   pd.merge meledak ("datetime64 and str columns"). Sekarang semua kolom
+   Datetime diparse eksplisit lewat _parse_datetime_column() yang tahan
+   format campuran (format="mixed", errors="coerce") dan konsisten
+   menghasilkan datetime64 murni tanpa timezone di ketiga file.
+2. [FIX CAKUPAN FORECAST] Forecasting HANYA menghasilkan & menimpa TEPAT
+   1 window N_OUTPUT (168 jam / 7 hari) setelah observasi terakhir. Baris
+   di luar window itu (hari ke-8 dan seterusnya) TIDAK disentuh sama
+   sekali, apapun isinya. Sebelumnya rolling multi-block forecasting
+   menimpa seluruh sisa grid (bisa berbulan-bulan ke depan) dan errornya
+   menumpuk (forecast drift) karena tiap blok memakai prediksi blok
+   sebelumnya sebagai "observasi palsu".
 """
 
 import os
+import sys
+from datetime import timedelta
+
 import joblib
 import numpy as np
 import pandas as pd
-import sys
-from datetime import datetime, timedelta
 
 # Mengunci Seed agar bobot stochastic gradient descent konsisten
 SEED = 42
 np.random.seed(SEED)
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Mematikan warning log bawaan TF yang mengotori konsol
-import tensorflow as tf
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Mematikan warning log bawaan TF yang mengotori konsol
+import tensorflow as tf  # noqa: E402
+
 tf.random.set_seed(SEED)
-from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.callbacks import EarlyStopping  # noqa: E402
 
 # =========================================================================
 # ⚙️ KONFIGURASI PATH ASET & PARAMETER DIMENSI SEQ2SEQ
@@ -52,6 +62,26 @@ print("=" * 80)
 print("🚀 LAUNCHING PIPELINE: AUTOMATED SEQ2SEQ RETRAIN & FORECAST SYSTEM (SYNCED)")
 print("=" * 80)
 
+
+# =========================================================================
+# 🛠️ UTIL: PARSING DATETIME YANG TAHAN FORMAT CAMPURAN
+# =========================================================================
+def parse_datetime_column(series: pd.Series, label: str) -> pd.Series:
+    """
+    Parsing kolom Datetime yang tahan terhadap format campuran (mis. baris
+    lama "%m/%d/%Y %H:%M" bercampur dengan baris baru ISO
+    "%Y-%m-%d %H:%M:%S"). Baris yang gagal diparse dijadikan NaT (bukan
+    meng-crash-kan pipeline) dan dilaporkan lewat konsol.
+    """
+    parsed = pd.to_datetime(series, format="mixed", dayfirst=False, errors="coerce")
+    n_invalid = int(parsed.isna().sum())
+    if n_invalid:
+        print(f"⚠️ [{label}] {n_invalid} baris punya format Datetime tidak valid, diabaikan.")
+    if parsed.dt.tz is not None:
+        parsed = parsed.dt.tz_localize(None)
+    return parsed
+
+
 # =========================================================================
 # 📊 DATA PIPELINE (INGESTION & SINKRONISASI)
 # =========================================================================
@@ -61,13 +91,25 @@ for file_path in [DATA_FILE_HIBRIDA, DATA_FILE_LSTM, DATA_FILE_OBSERVASI]:
         sys.exit(1)
 
 print("📋 Membaca basis data dari repositori...")
-df_hib = pd.read_csv(DATA_FILE_HIBRIDA, parse_dates=["Datetime"])
-df_lstm = pd.read_csv(DATA_FILE_LSTM, parse_dates=["Datetime"])
-df_obs = pd.read_csv(DATA_FILE_OBSERVASI, parse_dates=["Datetime"])
+# ⚠️ Sengaja TIDAK memakai parse_dates=["Datetime"] di sini karena rapuh
+# terhadap format tanggal campuran. Datetime diparse eksplisit di bawah.
+df_hib = pd.read_csv(DATA_FILE_HIBRIDA)
+df_lstm = pd.read_csv(DATA_FILE_LSTM)
+df_obs = pd.read_csv(DATA_FILE_OBSERVASI)
+
+df_hib["Datetime"] = parse_datetime_column(df_hib["Datetime"], DATA_FILE_HIBRIDA)
+df_lstm["Datetime"] = parse_datetime_column(df_lstm["Datetime"], DATA_FILE_LSTM)
+df_obs["Datetime"] = parse_datetime_column(df_obs["Datetime"], DATA_FILE_OBSERVASI)
+
+df_hib = df_hib.dropna(subset=["Datetime"]).reset_index(drop=True)
+df_lstm = df_lstm.dropna(subset=["Datetime"]).reset_index(drop=True)
+df_obs = df_obs.dropna(subset=["Datetime"]).reset_index(drop=True)
 
 # Proteksi Overwrite: Bersihkan kolom observasi bawaan lama dari file model prediksi
-if "TMA_Pasar_Ikan" in df_hib.columns: df_hib = df_hib.drop(columns=["TMA_Pasar_Ikan"])
-if "TMA_Pasar_Ikan" in df_lstm.columns: df_lstm = df_lstm.drop(columns=["TMA_Pasar_Ikan"])
+if "TMA_Pasar_Ikan" in df_hib.columns:
+    df_hib = df_hib.drop(columns=["TMA_Pasar_Ikan"])
+if "TMA_Pasar_Ikan" in df_lstm.columns:
+    df_lstm = df_lstm.drop(columns=["TMA_Pasar_Ikan"])
 
 # Menjahit data observasi murni ke grid waktu menggunakan Left Join
 df_learning = pd.merge(df_hib, df_obs[["Datetime", "TMA_Pasar_Ikan"]], on="Datetime", how="left")
@@ -84,6 +126,7 @@ print(f"📌 Batas Data Observasi Lapangan Aktual: {waktu_terakhir_obs}")
 print(f"🎯 Jendela overwrite forecast (TERBATAS): {waktu_terakhir_obs} < t <= {horizon_cutoff}")
 print("   (baris di luar jendela ini tidak akan diubah oleh pipeline ini)")
 
+
 def prepare_3d_sequences(dataset: np.ndarray, look_back: int, horizon: int) -> tuple[np.ndarray, np.ndarray]:
     """Mengubah array 1D menjadi pasangan tensor 3D untuk arsitektur Encoder-Decoder."""
     X, Y = [], []
@@ -91,6 +134,7 @@ def prepare_3d_sequences(dataset: np.ndarray, look_back: int, horizon: int) -> t
         X.append(dataset[i:(i + look_back), 0])
         Y.append(dataset[(i + look_back):(i + look_back + horizon), 0])
     return np.array(X), np.array(Y)
+
 
 # =========================================================================
 # 🧠 BLOK A: FINE-TUNING & FORECASTING MODEL LSTM MURNI (DIRECT TMA)
@@ -107,7 +151,7 @@ try:
     X_lstm = np.reshape(X_lstm, (X_lstm.shape[0], X_lstm.shape[1], 1))
     y_lstm = np.reshape(y_lstm, (y_lstm.shape[0], y_lstm.shape[1], 1))
 
-    autostop_tma = EarlyStopping(monitor='loss', patience=2, restore_best_weights=True, verbose=1)
+    autostop_tma = EarlyStopping(monitor="loss", patience=2, restore_best_weights=True, verbose=1)
 
     print(f"🏋️ Melatih ulang model via Fine-Tuning (Max: {MAX_EPOCHS} Epoch)...")
     model_tma.fit(X_lstm, y_lstm, epochs=MAX_EPOCHS, batch_size=BATCH_SIZE, callbacks=[autostop_tma], verbose=1)
@@ -154,7 +198,7 @@ try:
     X_res = np.reshape(X_res, (X_res.shape[0], X_res.shape[1], 1))
     y_res = np.reshape(y_res, (y_res.shape[0], y_res.shape[1], 1))
 
-    autostop_hib = EarlyStopping(monitor='loss', patience=2, restore_best_weights=True, verbose=1)
+    autostop_hib = EarlyStopping(monitor="loss", patience=2, restore_best_weights=True, verbose=1)
 
     print(f"🏋️ Melatih ulang model via Fine-Tuning (Max: {MAX_EPOCHS} Epoch)...")
     model_hib.fit(X_res, y_res, epochs=MAX_EPOCHS, batch_size=BATCH_SIZE, callbacks=[autostop_hib], verbose=1)
@@ -195,11 +239,13 @@ print("\n" + "=" * 80)
 print("💾 PROSES SINKRONISASI BASIS DATA NUMERIK...")
 print("=" * 80)
 
-df_hib["Datetime"] = df_hib["Datetime"].dt.strftime('%Y-%m-%d %H:%M:%S')
-df_lstm["Datetime"] = df_lstm["Datetime"].dt.strftime('%Y-%m-%d %H:%M:%S')
+df_hib["Datetime"] = df_hib["Datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
+df_lstm["Datetime"] = df_lstm["Datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
-if "TMA_Pasar_Ikan" in df_hib.columns: df_hib = df_hib.drop(columns=["TMA_Pasar_Ikan"])
-if "TMA_Pasar_Ikan" in df_lstm.columns: df_lstm = df_lstm.drop(columns=["TMA_Pasar_Ikan"])
+if "TMA_Pasar_Ikan" in df_hib.columns:
+    df_hib = df_hib.drop(columns=["TMA_Pasar_Ikan"])
+if "TMA_Pasar_Ikan" in df_lstm.columns:
+    df_lstm = df_lstm.drop(columns=["TMA_Pasar_Ikan"])
 
 df_hib.to_csv(DATA_FILE_HIBRIDA, index=False)
 df_lstm.to_csv(DATA_FILE_LSTM, index=False)
