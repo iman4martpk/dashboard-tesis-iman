@@ -12,7 +12,7 @@ jobs:
   train_and_update_model:
     runs-on: ubuntu-latest
     
-    # 🔑 Izin agar robot bisa push file model (.keras/.save) setelah ditraining
+    # 🔑 Izin agar robot bisa push file model & CSV setelah komputasi selesai
     permissions:
       contents: write
       
@@ -26,34 +26,34 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
           
-      - name: 📦 Install ML Dependencies (Paksa via YAML)
+      - name: 📦 Install ML Dependencies (Double Protection Guard)
         run: |
           python -m pip install --upgrade pip
           pip install pandas numpy plotly requests lxml tensorflow scikit-learn streamlit
           
-      - name: 🧠 Eksekusi Script Training Model LSTM
+      - name: 🧠 Eksekusi Script Training & Forecast Seq2Seq
         run: python retrain_and_forecast.py 
         
-      - name: 📤 Commit & Push Update Model Baru
+      - name: 📤 Commit & Push Update Model Baru & Hasil Forecast
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 1. Daftarkan file model master dan scaler terbaru (Hibrida & LSTM Murni)
-          git add model_pasar_ikan_lstm_murni_master.keras model_pasar_ikan_master.keras scaler_residu_pasar_ikan.save scaler_tma_pasar_ikan_lstm_murni.save
+          # 1. Daftarkan file model master, scaler, DAN file CSV hasil prediksi baru!
+          git add model_pasar_ikan_lstm_murni_master.keras model_pasar_ikan_master.keras scaler_residu_pasar_ikan.save scaler_tma_pasar_ikan_lstm_murni.save HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv
           
           # 2. Sinkronisasi riwayat Git biar gak bentrok
           git fetch origin main
           git reset --mixed origin/main
           
-          # 3. Add ulang setelah reset agar siap di-commit
-          git add model_pasar_ikan_lstm_murni_master.keras model_pasar_ikan_master.keras scaler_residu_pasar_ikan.save scaler_tma_pasar_ikan_lstm_murni.save
+          # 3. Add ulang semuanya setelah reset agar siap di-commit secara rapi
+          git add model_pasar_ikan_lstm_murni_master.keras model_pasar_ikan_master.keras scaler_residu_pasar_ikan.save scaler_tma_pasar_ikan_lstm_murni.save HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv
           
-          # 4. Commit dan push secara aman jika ada perubahan file model setelah retraining
+          # 4. Commit dan push secara aman jika terdeteksi perubahan nilai
           if ! git diff --cached --quiet; then
-            git commit -m "🤖 Auto-retrain & update LSTM model master (Jalur 2)"
+            git commit -m "🤖 Auto-retrain & update LSTM model + forecast CSV (Jalur 2)"
             git pull --rebase origin main
             git push origin main
           else
-            echo "Tidak ada perubahan pada file model. Lewati proses push."
+            echo "Tidak ada perubahan pada model maupun data prediksi. Lewati proses push."
           fi
