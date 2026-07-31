@@ -2,7 +2,7 @@ name: 🔄 Jalur 2 - Retrain ML Pipeline (Mingguan via GAS)
 
 on:
   repository_dispatch:
-    types: [trigger_ml_pipeline]
+    types: [trigger_ml_pipeline] # 🎯 SINKRONKAN: Pastikan payload GAS lu mengirim event_type ini!
   workflow_dispatch:
 
 jobs:
@@ -15,7 +15,10 @@ jobs:
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
-        
+        with:
+          persist-credentials: true # 🔑 WAJIB: Izin token internal untuk melakukan git push
+          fetch-depth: 0             # 📚 WAJIB: Mengambil seluruh history commit agar rebase tidak error
+
       - name: 🐍 Set up Python (Disamakan dengan Laptop Lu)
         uses: actions/setup-python@v5
         with:
@@ -35,17 +38,24 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          git add model_pasar_ikan_lstm_murni_master.keras model_pasar_ikan_master.keras scaler_residu_pasar_ikan.save scaler_tma_pasar_ikan_lstm_murni.save HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv
-          
+          # 1. Pastikan posisi Git berada di branch main yang paling update
           git fetch origin main
-          git reset --mixed origin/main
+          git checkout main
           
-          git add model_pasar_ikan_lstm_murni_master.keras model_pasar_ikan_master.keras scaler_residu_pasar_ikan.save scaler_tma_pasar_ikan_lstm_murni.save HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv
+          # 2. Stage semua aset model, scaler, dan CSV hasil ramalan 7 hari terbaru
+          git add model_pasar_ikan_lstm_murni_master.keras \
+                  model_pasar_ikan_master.keras \
+                  scaler_residu_pasar_ikan.save \
+                  scaler_tma_pasar_ikan_lstm_murni.save \
+                  HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv \
+                  HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv
           
+          # 3. Cek perubahan, jika ada lakukan rebase aman lalu push ke server
           if ! git diff --cached --quiet; then
-            git commit -m "🤖 Auto-retrain & update LSTM model + forecast CSV (Jalur 2 - Synced Environment)"
-            git pull --rebase origin main
+            echo "✅ Perubahan model & forecast terdeteksi. Melakukan commit..."
+            git commit -m "🤖 Auto-retrain & update LSTM model + 7-days forecast CSV (Jalur 2 - Synced Environment)"
+            git pull --rebase origin main -X theirs
             git push origin main
           else
-            echo "Tidak ada perubahan pada model maupun data prediksi. Lewati proses push."
+            echo "ℹ️ Tidak ada perubahan pada model maupun data prediksi. Lewati proses push."
           fi
