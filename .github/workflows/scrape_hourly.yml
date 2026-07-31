@@ -6,6 +6,9 @@ on:
     - cron: '*/30 * * * *'
   workflow_dispatch:
     # Memunculkan tombol "Run workflow" manual di GitHub Actions
+  repository_dispatch:
+    # 🎯 GERBANG UTAMA: Menerima tembakan API dari Google Apps Script lu
+    types: [run_scrape_hourly]
 
 jobs:
   scrape_and_update_data:
@@ -35,6 +38,7 @@ jobs:
           
       - name: 🌐 Eksekusi Script Scraper TMA
         run: |
+          # 🔄 KEMBALI KE NAMA ASLI: Aman dari perubahan masal
           python scrape_hourly.py
         
       - name: 📤 Commit & Push Hasil Scrape Observasi Terbaru
