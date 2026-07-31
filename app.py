@@ -174,7 +174,6 @@ def inject_custom_css() -> None:
         .block-container {{ padding-top: 3.2rem !important; padding-bottom: 2rem !important; max-width: 95% !important; }}
         .header-text {{ text-align: center; width: 100%; margin-top: 5px; margin-bottom: 0px !important; padding-bottom: 0px !important; }}
         html, body, [class*="css"] {{ font-family: Arial, Helvetica, sans-serif !important; }}
-        /* FIX: Tambahan border-left 4px di base CSS agar garis kiri kartu selalu muncul kokoh */
         div[data-testid="stMetric"] {{ background-color: #ffffff !important; border: 1px solid #e2e8f0 !important; border-left: 4px solid #e2e8f0 !important; padding: 4px 10px !important; border-radius: 8px !important; min-height: 55px !important; }}
         div[data-testid="stMetricLabel"] {{ color: #64748b !important; font-weight: 600 !important; font-size: 0.68rem !important; margin-bottom: -4px !important; }}
         [data-testid="stMetricValue"] {{ font-size: 14px !important; font-weight: 700 !important; color: #0f172a !important; }}
@@ -195,8 +194,7 @@ def _parse_datetime_column(series: pd.Series) -> pd.Series:
 def load_data() -> pd.DataFrame:
     """
     Semua dataframe (Hibrida, LSTM, Observasi) dilebur ke dalam
-    satu grid waktu master (Left Merge) agar ukurannya dijamin sama dan mustahil
-    terjadi crash index baris tidak sejajar saat filter applied.
+    satu grid waktu master (Left Merge) agar ukurannya dijamin sama.
     """
     df_master = pd.read_csv(DATA_FILE_HIBRIDA)
     df_lstm = pd.read_csv(DATA_FILE_LSTM)
@@ -210,18 +208,15 @@ def load_data() -> pd.DataFrame:
     df_lstm[COL_DATETIME] = _parse_datetime_column(df_lstm[COL_DATETIME])
     df_obs[COL_DATETIME] = _parse_datetime_column(df_obs[COL_DATETIME])
 
-    # Hapus baris yang datetime-nya invalid (NaT)
     df_master = df_master.dropna(subset=[COL_DATETIME]).drop_duplicates(subset=[COL_DATETIME])
     df_lstm = df_lstm.dropna(subset=[COL_DATETIME]).drop_duplicates(subset=[COL_DATETIME])
     df_obs = df_obs.dropna(subset=[COL_DATETIME]).drop_duplicates(subset=[COL_DATETIME])
 
-    # Bersihkan kolom observasi bawaan di master agar tidak tumpang tindih
     if COL_OBSERVASI in df_master.columns:
         df_master = df_master.drop(columns=[COL_OBSERVASI])
     if COL_LSTM in df_master.columns:
         df_master = df_master.drop(columns=[COL_LSTM])
 
-    # MERGE (Penyatuan Suci)
     df_master = pd.merge(df_master, df_lstm[[COL_DATETIME, COL_LSTM]], on=COL_DATETIME, how="left")
     df_master = pd.merge(df_master, df_obs[[COL_DATETIME, COL_OBSERVASI]], on=COL_DATETIME, how="left")
     
@@ -348,8 +343,15 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict])
         min_date = df_filtered[COL_DATETIME].min()
         max_date = df_filtered[COL_DATETIME].max()
         if pd.notna(min_date) and pd.notna(max_date) and min_date <= waktu_sekarang_jam <= max_date:
-            # FIX: Langsung masukkan objek datetime agar tidak kena offset UTC server
-            fig.add_vline(x=waktu_sekarang_jam, line_width=1.5, line_dash="dot", line_color="#334155")
+            # 🔥 FIX & ENHANCEMENT: Memasang garis vertikal dengan teks jangkar "Waktu Sekarang (WIB)"
+            fig.add_vline(
+                x=waktu_sekarang_jam, 
+                line_width=1.5, 
+                line_dash="dot", 
+                line_color="#334155",
+                annotation_text=" Waktu Sekarang (WIB)", 
+                annotation_position="top right"
+            )
 
     fig.update_layout(height=430, template="plotly_white", margin=dict(l=10, r=10, t=25, b=10), hovermode="x unified", hoverlabel=dict(bgcolor="white", font_size=11, font_family="Arial"), xaxis=dict(tickfont=dict(size=10, family="Arial")), yaxis=dict(title=dict(text="Tinggi Air (cm)", font=dict(size=11, family="Arial")), tickfont=dict(size=10, family="Arial"), range=[dynamic_min, dynamic_max]), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, family="Arial")), font=dict(family="Arial, Helvetica, sans-serif", color="#1E293B"))
     return fig
@@ -453,7 +455,7 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -
     rmse_l, mae_l, corr_l, acc_l = calc_metrics(lstm)
     rmse_h, mae_h, corr_h, acc_h = calc_metrics(hibrida)
 
-    # ---------------- BIKIN TABEL METRIK (ISTILAH BARU) ----------------
+    # ---------------- BIKIN TABEL METRIK ----------------
     df_metrics = pd.DataFrame({
         "Pendekatan Peramalan": [
             "Harmonik UTide (Astronomis Konvensional)", 
