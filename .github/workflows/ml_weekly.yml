@@ -2,7 +2,7 @@ name: 🔄 Jalur 2 - Retrain ML Pipeline (Mingguan via GAS)
 
 on:
   repository_dispatch:
-    types: [trigger_ml_pipeline] # 🎯 SINKRONKAN: Pastikan payload GAS lu mengirim event_type ini!
+    types: [trigger_ml_pipeline] # 🎯 SINKRONKAN: Pastikan payload GAS mengirim event_type ini!
   workflow_dispatch:
 
 jobs:
