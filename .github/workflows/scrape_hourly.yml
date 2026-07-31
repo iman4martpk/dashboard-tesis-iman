@@ -1,4 +1,4 @@
-- name: 📤 Commit & Push Hasil Scrape Observasi Terbaru
+- name: 🛰️ Jalur 1 - Scraper TMA 30 Menitan
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
