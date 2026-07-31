@@ -311,7 +311,7 @@ def compute_kpis(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> O
 # =========================================================================
 def render_header() -> None:
     st.markdown(
-        \"\"\"<div class="header-text"><h2 style="margin: 0; color: #0F172A; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 1.55rem;">🌊 Dashboard Tesis: Prediksi Banjir Rob Jakarta (Harmonic, Hibrida(Harmonic+LSTM), dan LSTM) • Iman, S.Si.</h2></div>\"\"\",
+        \"\"\"<div class="header-text"><h2 style="margin: 0; color: #0F172A; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 1.55rem;">🌊 Dashboard Tesis: Prediksi Pasang Surut (Harmonic vs Hibrida vs LSTM) Jakarta • Iman, S.Si.</h2></div>\"\"\",
         unsafe_allow_html=True,
     )
 
