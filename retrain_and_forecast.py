@@ -3,62 +3,27 @@
 Pipeline Tesis Otomatis: Auto-Retraining (Fine-Tuning) & Multi-Step Forecasting
 Arsitektur: Seq2Seq LSTM (Encoder-Decoder) 3D Tensor Compatible
 Desain Sistem: 3-File Architecture (Single Source of Truth)
-Patch Status: Keras Version Mismatch & Scikit-Learn 1.8.0 Alignment Secured
+Status: Environment 100% Synced with Local Machine
 """
 
-# =========================================================================
-# 📦 1. FORCED AUTO-INSTALL (Server Dependency Guard)
-# =========================================================================
-import subprocess
-import sys
-
-def paksa_install(package_name: str) -> None:
-    """Memastikan library pihak ketiga terpasang sebelum modul utama diimpor."""
-    try:
-        if package_name == 'scikit-learn':
-            import sklearn
-            if sklearn.__version__ != '1.8.0':
-                raise ImportError("Versi mismatch")
-        else:
-            __import__(package_name)
-    except ImportError:
-        print(f"🚨 Modul '{package_name}' tidak sesuai/ditemukan! Memaksa instalasi versi stabil di server...")
-        if package_name == 'scikit-learn':
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "scikit-learn==1.8.0"])
-        else:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
-
-# Memasang dua dependensi komputasi utama
-paksa_install('tensorflow')
-paksa_install('scikit-learn')
-
-# =========================================================================
-# 🧠 2. IMPOR & KONFIGURASI REPRODUCIBILITY
-# =========================================================================
 import os
 import joblib
 import numpy as np
 import pandas as pd
+import sys
 from datetime import datetime, timedelta
 
 # Mengunci Seed agar bobot stochastic gradient descent konsisten
 SEED = 42
 np.random.seed(SEED)
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Mematikan warning log bawaan TF
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Mematikan warning log bawaan TF yang mengotori konsol
 import tensorflow as tf
 tf.random.set_seed(SEED)
 from tensorflow.keras.callbacks import EarlyStopping
 
-# 🛠️ UTILITY PATCH: Menangani Keras version mismatch (quantization_config bug)
-@tf.keras.utils.register_keras_serializable(package="Custom")
-class CustomDense(tf.keras.layers.Dense):
-    def __init__(self, *args, **kwargs):
-        kwargs.pop('quantization_config', None) # Buang biang kerok crash
-        super().__init__(*args, **kwargs)
-
 # =========================================================================
-# ⚙️ 3. KONFIGURASI PATH ASET & PARAMETER DIMENSI SEQ2SEQ
+# ⚙️ KONFIGURASI PATH ASET & PARAMETER DIMENSI SEQ2SEQ
 # =========================================================================
 DATA_FILE_HIBRIDA = "HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv"
 DATA_FILE_LSTM = "HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv"
@@ -75,11 +40,11 @@ MAX_EPOCHS = 10
 BATCH_SIZE = 128
 
 print("=" * 80)
-print("🚀 LAUNCHING PIPELINE: AUTOMATED SEQ2SEQ RETRAIN & FORECAST SYSTEM")
+print("🚀 LAUNCHING PIPELINE: AUTOMATED SEQ2SEQ RETRAIN & FORECAST SYSTEM (SYNCED)")
 print("=" * 80)
 
 # =========================================================================
-# 📊 4. DATA PIPELINE (INGESTION & SINKRONISASI)
+# 📊 DATA PIPELINE (INGESTION & SINKRONISASI)
 # =========================================================================
 for file_path in [DATA_FILE_HIBRIDA, DATA_FILE_LSTM, DATA_FILE_OBSERVASI]:
     if not os.path.exists(file_path):
@@ -91,14 +56,16 @@ df_hib = pd.read_csv(DATA_FILE_HIBRIDA, parse_dates=["Datetime"])
 df_lstm = pd.read_csv(DATA_FILE_LSTM, parse_dates=["Datetime"])
 df_obs = pd.read_csv(DATA_FILE_OBSERVASI, parse_dates=["Datetime"])
 
+# Proteksi Overwrite: Bersihkan kolom observasi bawaan lama dari file model prediksi
 if "TMA_Pasar_Ikan" in df_hib.columns: df_hib = df_hib.drop(columns=["TMA_Pasar_Ikan"])
 if "TMA_Pasar_Ikan" in df_lstm.columns: df_lstm = df_lstm.drop(columns=["TMA_Pasar_Ikan"])
 
+# Menjahit data observasi murni ke grid waktu menggunakan Left Join
 df_learning = pd.merge(df_hib, df_obs[["Datetime", "TMA_Pasar_Ikan"]], on="Datetime", how="left")
 df_valid = df_learning[df_learning["TMA_Pasar_Ikan"].notna()].sort_values("Datetime").reset_index(drop=True)
 
 if len(df_valid) <= N_INPUT + N_OUTPUT:
-    print(f"⚠️ Data observasi murni ({len(df_valid)} jam) belum memenuhi syarat windowing.")
+    print(f"⚠️ Data observasi murni ({len(df_valid)} jam) belum memenuhi syarat windowing ({N_INPUT + N_OUTPUT} jam).")
     print("⏭️ Melewati fase retraining operasional minggu ini.")
     sys.exit(0)
 
@@ -106,6 +73,7 @@ waktu_terakhir_obs = df_valid["Datetime"].iloc[-1]
 print(f"📌 Batas Data Observasi Lapangan Aktual: {waktu_terakhir_obs}")
 
 def prepare_3d_sequences(dataset: np.ndarray, look_back: int, horizon: int) -> tuple[np.ndarray, np.ndarray]:
+    """Mengubah array 1D menjadi pasangan tensor 3D untuk arsitektur Encoder-Decoder."""
     X, Y = [], []
     for i in range(len(dataset) - look_back - horizon + 1):
         X.append(dataset[i:(i + look_back), 0])
@@ -113,15 +81,14 @@ def prepare_3d_sequences(dataset: np.ndarray, look_back: int, horizon: int) -> t
     return np.array(X), np.array(Y)
 
 # =========================================================================
-# 🧠 5. BLOK A: FINE-TUNING & FORECASTING MODEL LSTM MURNI (DIRECT TMA)
+# 🧠 BLOK A: FINE-TUNING & FORECASTING MODEL LSTM MURNI (DIRECT TMA)
 # =========================================================================
 print("\n" + "-" * 50)
 print("🧠 [BLOK A] PROSES MODEL LSTM MURNI (PREDIKSI LANGSUNG TMA)")
 print("-" * 50)
 try:
     scaler_tma = joblib.load(SCALER_LSTM_MURNI)
-    # Suntikkan patch CustomDense ke dalam custom_objects agar aman dari error deserialisasi
-    model_tma = tf.keras.models.load_model(MODEL_LSTM_MURNI, custom_objects={'Dense': CustomDense})
+    model_tma = tf.keras.models.load_model(MODEL_LSTM_MURNI)
     
     scaled_tma = scaler_tma.transform(df_valid[["TMA_Pasar_Ikan"]].values.reshape(-1, 1))
     X_lstm, y_lstm = prepare_3d_sequences(scaled_tma, N_INPUT, N_OUTPUT)
@@ -160,15 +127,14 @@ except Exception as err:
     print(f"❌ Error Terjadi pada Blok A: {err}")
 
 # =========================================================================
-# 🧠 6. BLOK B: FINE-TUNING & FORECASTING MODEL HIBRIDA (ERROR RESIDUAL)
+# 🧠 BLOK B: FINE-TUNING & FORECASTING MODEL HIBRIDA (ERROR RESIDUAL)
 # =========================================================================
 print("\n" + "-" * 50)
 print("🧠 [BLOK B] PROSES MODEL HIBRIDA (PREDIKSI RESIDU ERROR)")
 print("-" * 50)
 try:
     scaler_residu = joblib.load(SCALER_RESIDU_HIBRIDA)
-    # Suntikkan patch CustomDense ke dalam custom_objects
-    model_hib = tf.keras.models.load_model(MODEL_HIBRIDA, custom_objects={'Dense': CustomDense})
+    model_hib = tf.keras.models.load_model(MODEL_HIBRIDA)
     
     residu_historis = df_valid["TMA_Pasar_Ikan"].values - df_valid["Prediksi_Harmonik_UTIDE"].values
     scaled_residu = scaler_residu.transform(residu_historis.reshape(-1, 1))
@@ -211,7 +177,7 @@ except Exception as err:
     print(f"❌ Error Terjadi pada Blok B: {err}")
 
 # =========================================================================
-# 💾 7. DATABASE SYNCHRONIZATION & STORAGE MANAGEMENT
+# 💾 DATABASE SYNCHRONIZATION & STORAGE MANAGEMENT
 # =========================================================================
 print("\n" + "=" * 80)
 print("💾 PROSES SINKRONISASI BASIS DATA NUMERIK...")
