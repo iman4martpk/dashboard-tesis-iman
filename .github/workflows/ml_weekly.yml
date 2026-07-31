@@ -29,7 +29,7 @@ jobs:
       - name: 📦 Install ML Dependencies (Double Protection Guard)
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy plotly requests lxml tensorflow scikit-learn streamlit
+          pip install pandas numpy plotly requests lxml tensorflow scikit-learn==1.8.0 streamlit
           
       - name: 🧠 Eksekusi Script Training & Forecast Seq2Seq
         run: python retrain_and_forecast.py 
