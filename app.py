@@ -5,7 +5,7 @@ Aplikasi Streamlit ini menampilkan perbandingan performa pendekatan
 prediksi pasang surut air laut dengan data observasi independen secara REAL-TIME.
 """
 
-from _future annotations
+from __future__ import annotations
 
 import re
 from dataclasses import dataclass
