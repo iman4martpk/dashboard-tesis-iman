@@ -45,14 +45,14 @@ COLOR_PALETTE = {
     
     # GARIS GRAFIK
     "observasi": "#475569",                 # Slate-600 (Abu-abu baja kalem, tidak terlalu gelap)
-    "utide": "rgba(0, 194, 255, 0.50)",     # Cyan elektrik, transparan 50%
-    "lstm": "rgba(255, 45, 149, 0.50)",     # Magenta terang, transparan 50%
-    "hibrida": "rgba(37, 99, 235, 0.80)",   # Royal Blue (Biru elegan & atraktif), sedikit lebih pekat
+    "utide": "rgba(0, 194, 255, 0.30)",     # Cyan elektrik, transparan 50%
+    "lstm": "rgba(255, 45, 149, 0.30)",     # Magenta terang, transparan 50%
+    "hibrida": "rgba(37, 99, 235, 0.40)",   # Royal Blue (Biru elegan & atraktif), sedikit lebih pekat
     
     # PITA GRADASI (Background)
     "aman": "#BAE6FD",     # Biru muda kalem (sky-200) untuk area < 230
     "waspada": "#EA580C",  # Jingga tua
-    "awas": "#DC2626",     # Merah
+    "awas": "#E11D48",     # Merah
 }
 
 # --- Zona / pita siaga pada grafik (cm) ----------------------------------
