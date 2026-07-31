@@ -1,49 +1,23 @@
-name: 🔄 Jalur 1 - Scrape Realtime (Tiap Jam via GAS)
-
-on:
-  repository_dispatch:
-    # 🎯 Menangkap sinyal event_type "run_scrape_hourly" yang ditembak oleh GAS
-    types: [run_scrape_hourly] 
-    
-  workflow_dispatch: 
-    # 🛠️ Memunculkan tombol manual "Run workflow" di tab Actions buat test drive kapan saja
-
-jobs:
-  scrape_and_update:
-    runs-on: ubuntu-latest
-    
-    # 🔑 Membuka izin agar robot bisa menulis/push data ke repository
-    permissions:
-      contents: write
-    
-    steps:
-      # 🚀 Menggunakan versi terbaru agar bebas warning Node.js deprecation
-      - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
-        
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-          
-      - name: 📦 Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pandas requests lxml pytz
-          
-      - name: ⚙️ Eksekusi Script Scraper
-        run: python scrape_hourly.py
-        
-      - name: 📤 Commit & Push Perubahan Data
+- name: 📤 Commit & Push Hasil Scrape Observasi Terbaru
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv
           
-          # Jika tidak ada perubahan data jam tersebut, script tidak akan error dan lanjut jalan
-          git commit -m "🤖 Auto-update data observasi via GAS (Jalur 1)" || echo "Tidak ada perubahan data untuk dicommit."
+          # 1. Posisikan Git pada branch main secara bersih
+          git fetch origin main
+          git checkout main
           
-          # 🛡️ PENGAMAN UTAMA: Ambil update terbaru di GitHub (jika ada) sebelum ditimpa push baru
-          git pull --rebase origin main
+          # 2. Masukkan file observasi yang berubah ke antrean staging area
+          git add HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv
           
-          git push
+          # 3. Cek apakah benar-benar ada data baru yang masuk
+          if ! git diff --cached --quiet; then
+            echo "✅ Data observasi baru terdeteksi. Bersiap melakukan commit..."
+            git commit -m "🤖 Auto-scrape: Update data observasi aktual TMA Pasar Ikan"
+            
+            # 4. Ambil update terbaru dari server dengan aman, lalu push
+            git pull origin main --rebase -X theirs
+            git push origin main
+          else
+            echo "ℹ️ Tidak ada data baru dari situs target. Proses push dilewati."
+          fi
