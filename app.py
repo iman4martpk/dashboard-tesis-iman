@@ -194,7 +194,7 @@ def _parse_datetime_column(series: pd.Series) -> pd.Series:
 
 def load_data() -> pd.DataFrame:
     """
-    FIX STRUKTURAL: Semua dataframe (Hibrida, LSTM, Observasi) dilebur ke dalam
+    Semua dataframe (Hibrida, LSTM, Observasi) dilebur ke dalam
     satu grid waktu master (Left Merge) agar ukurannya dijamin sama dan mustahil
     terjadi crash index baris tidak sejajar saat filter applied.
     """
@@ -307,7 +307,6 @@ def render_kpi_cards(kpi: KpiResult) -> None:
     _render_metric_card(col4, "🏆 RMSE HIBRIDA (Integrasi)", f"{kpi.hibrida.rmse:.2f} cm {_metrik_badge(kpi.hibrida)}", kpi.hibrida.warna)
 
 def render_empty_kpi_cards() -> None:
-    """FIX: Menampilkan kartu kosong jika tidak ada data observasi, agar layout tidak patah."""
     col1, col2, col3, col4 = st.columns(4)
     _render_metric_card(col1, "📈 REDUKSI EROR (vs UTide)", '<span style="color: #64748B;">Tidak ada data</span>', COLOR_PALETTE["observasi"])
     _render_metric_card(col2, "📉 RMSE UTIDE (Astronomis)", '<span style="color: #64748B;">Tidak ada data</span>', COLOR_PALETTE["observasi"])
@@ -319,7 +318,6 @@ def _add_alert_zones(fig: go.Figure, dynamic_min: float, dynamic_max: float) -> 
         y0_clip = max(y0, dynamic_min)
         y1_clip = min(y1, dynamic_max)
         if y0_clip >= y1_clip: continue
-        # FIX: y0_clip dan y1_clip dipakai di dalam add_hrect agar gambarnya presisi
         fig.add_hrect(y0=y0_clip, y1=y1_clip, fillcolor=warna, opacity=opacity, line_width=0, layer="below")
         fig.add_annotation(xref="paper", yref="y", x=0.005, y=(y0_clip + y1_clip) / 2, text=f"<b>{label}</b>", showarrow=False, xanchor="left", yanchor="middle", font=dict(color="#1E293B", size=10, family="Arial"), bgcolor="rgba(255,255,255,0.55)")
 
@@ -346,12 +344,12 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict])
     fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (Integrasi Keduanya)", line=dict(color=COLOR_PALETTE["hibrida"], width=2.0, shape="spline", smoothing=0.9)))
 
     if data_dsda and data_dsda["tma"] is not None:
-        # FIX: Gunakan waktu lokal Jakarta
         waktu_sekarang_jam = get_now_jkt().replace(minute=0, second=0, microsecond=0)
         min_date = df_filtered[COL_DATETIME].min()
         max_date = df_filtered[COL_DATETIME].max()
         if pd.notna(min_date) and pd.notna(max_date) and min_date <= waktu_sekarang_jam <= max_date:
-            fig.add_vline(x=waktu_sekarang_jam.timestamp() * 1000, line_width=1.5, line_dash="dot", line_color="#334155")
+            # FIX: Langsung masukkan objek datetime agar tidak kena offset UTC server
+            fig.add_vline(x=waktu_sekarang_jam, line_width=1.5, line_dash="dot", line_color="#334155")
 
     fig.update_layout(height=430, template="plotly_white", margin=dict(l=10, r=10, t=25, b=10), hovermode="x unified", hoverlabel=dict(bgcolor="white", font_size=11, font_family="Arial"), xaxis=dict(tickfont=dict(size=10, family="Arial")), yaxis=dict(title=dict(text="Tinggi Air (cm)", font=dict(size=11, family="Arial")), tickfont=dict(size=10, family="Arial"), range=[dynamic_min, dynamic_max]), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, family="Arial")), font=dict(family="Arial, Helvetica, sans-serif", color="#1E293B"))
     return fig
@@ -367,7 +365,6 @@ def render_data_table(df_filtered: pd.DataFrame) -> None:
         COL_HIBRIDA: df_filtered[COL_HIBRIDA],
     })
     
-    # FIX: Konsistensi Streamlit API
     st.dataframe(df_tampilan.reset_index(drop=True), use_container_width=True, hide_index=True)
     
     csv_data = df_tampilan.to_csv(index=False).encode("utf-8")
@@ -398,7 +395,6 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -
     eval_df = df_filtered.copy()
     
     if scope == "Rekap Bulanan":
-        # FIX: Gunakan df.copy() agar tidak merusak df master di memory
         df_master_copy = df_master.copy()
         df_master_copy['MonthYear'] = df_master_copy[COL_DATETIME].dt.to_period('M')
         months = sorted(df_master_copy['MonthYear'].dropna().unique(), reverse=True)
@@ -514,7 +510,6 @@ def main() -> None:
     data_dsda = fetch_realtime_data()
 
     try:
-        # FIX: df_lstm sekarang sudah dilebur ke dalam df_master
         df_master = load_data()
     except Exception as e:
         st.error(f"❌ File CSV gagal dimuat. Error: {e}")
