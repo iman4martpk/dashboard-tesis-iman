@@ -1,9 +1,9 @@
-code = """\"\"\"
+"""
 Dashboard Monitoring Pasut Hibrida (UTide + LSTM) - Stasiun Pasar Ikan, Jakarta.
 
 Aplikasi Streamlit ini menampilkan perbandingan performa tiga metode
 prediksi pasang surut air laut dengan data observasi independen secara REAL-TIME.
-\"\"\"
+"""
 
 from __future__ import annotations
 
@@ -56,14 +56,11 @@ COLOR_PALETTE = {
 }
 
 # --- Zona / pita siaga pada grafik (cm) ----------------------------------
-Y_AXIS_MIN = 100
-Y_AXIS_MAX = 280
-
 ALERT_ZONES = [
     # (y0, y1, warna, label, opacity)
-    (Y_AXIS_MIN, 230, COLOR_PALETTE["aman"], "KONDISI AMAN", 0.25),
+    (0, 230, COLOR_PALETTE["aman"], "KONDISI AMAN", 0.25),
     (230, 250, COLOR_PALETTE["waspada"], "WASPADA ROB", 0.32),
-    (250, Y_AXIS_MAX, COLOR_PALETTE["awas"], "AWAS ROB", 0.25), # Opacity background merah diturunin dikit biar garis kelihatan
+    (250, 500, COLOR_PALETTE["awas"], "AWAS ROB", 0.25), 
 ]
 
 # --- LOGIKA DINAMIS 2 HARI KE BELAKANG & 2 HARI KE DEPAN ---
@@ -115,16 +112,16 @@ TMA_MIN, TMA_MAX = -300, 500
 
 
 def _extract_pasar_ikan_reading(tree: html.HtmlElement) -> Optional[dict]:
-    \"\"\"
+    """
     Cari baris "Pasar Ikan" secara generik (nama pos & posisi kolom, bukan
     index baris/kolom tetap) supaya tidak gampang gagal saat markup situs
     BPBD sedikit berubah.
-    \"\"\"
+    """
     header_cells = tree.xpath("//table//thead//tr[last()]//*[self::th or self::td]")
     jam_list = []
     for cell in header_cells:
         text = " ".join(cell.itertext())
-        match = re.search(r"\\b\d{1,2}:\d{2}\\b", text)
+        match = re.search(r"\b\d{1,2}:\d{2}\b", text)
         if match:
             jam_list.append(match.group())
     if not jam_list:
@@ -172,7 +169,7 @@ def fetch_realtime_data() -> Optional[dict]:
 # =========================================================================
 def inject_custom_css() -> None:
     st.markdown(
-        f\"\"\"
+        f"""
         <style>
         [data-baseweb="popover"] {{ transform: scale(0.95) !important; transform-origin: top left !important; }}
         [data-baseweb="popover"] > div {{ max-width: 260px !important; }}
@@ -194,18 +191,18 @@ def inject_custom_css() -> None:
         .summary-text {{ font-family: Arial, Helvetica, sans-serif !important; font-weight: 600; font-size: 0.82rem; color: #1e293b; }}
         @media (max-width: 767px) {{ .block-container {{ padding-top: 3.4rem !important; }} .header-text h2 {{ font-size: 1.1rem !important; margin-top: 10px !important; }} .summary-text {{ font-size: 0.72rem !important; }} [data-testid="stMetricValue"] {{ font-size: 12px !important; }} }}
         </style>
-        \"\"\",
+        """,
         unsafe_allow_html=True,
     )
 
 
 def _parse_datetime_column(series: pd.Series) -> pd.Series:
-    \"\"\"
+    """
     Parsing Datetime yang tahan terhadap format campuran (mis. file lama
     berformat "%m/%d/%Y %H:%M" bercampur dengan baris baru dari scraper yang
     berformat ISO "%Y-%m-%d %H:%M:%S"). Baris yang gagal diparse dijadikan
     NaT (bukan meng-crash-kan seluruh aplikasi) lalu dibuang.
-    \"\"\"
+    """
     parsed = pd.to_datetime(series, format="mixed", dayfirst=False, errors="coerce")
     n_invalid = parsed.isna().sum()
     if n_invalid:
@@ -311,7 +308,7 @@ def compute_kpis(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame) -> O
 # =========================================================================
 def render_header() -> None:
     st.markdown(
-        \"\"\"<div class="header-text"><h2 style="margin: 0; color: #0F172A; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 1.55rem;">🌊 Dashboard Tesis: Prediksi Pasang Surut (Harmonic vs Hibrida vs LSTM) Jakarta • Iman, S.Si.</h2></div>\"\"\",
+        """<div class="header-text"><h2 style="margin: 0; color: #0F172A; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 1.55rem;">🌊 Dashboard Tesis: Prediksi Pasang Surut (Harmonic vs Hibrida vs LSTM) Jakarta • Iman, S.Si.</h2></div>""",
         unsafe_allow_html=True,
     )
 
@@ -323,13 +320,13 @@ def render_summary_box(pilihan_mode: str, data_dsda: Optional[dict]) -> None:
         info_realtime = " | 🔴 <b>DSDA Real-time:</b> <span style='color:#64748B;'>Offline/Delay</span>"
 
     st.markdown(
-        f\"\"\"
+        f"""
         <div class="summary-box">
             <span class="summary-text">
                 📍 <b>Stasiun:</b> Pasar Ikan, Jakarta | 🛡️ <b>Mode:</b> {PRESETS[pilihan_mode]['desc']}{info_realtime}
             </span>
         </div>
-        \"\"\",
+        """,
         unsafe_allow_html=True,
     )
 
@@ -360,15 +357,17 @@ def render_empty_kpi_cards() -> None:
     _render_metric_card(col4, "🏆 RMSE HIBRIDA", '<span style="color: #64748B;">No Obs Data</span>', COLOR_PALETTE["observasi"])
 
 
-def _add_alert_zones(fig: go.Figure) -> None:
-    \"\"\"Gambar pita gradasi level siaga sebagai background chart (bukan garis).\"\"\"
+def _add_alert_zones(fig: go.Figure, dynamic_min: float, dynamic_max: float) -> None:
+    """Gambar pita gradasi level siaga sebagai background chart (bukan garis)."""
     for y0, y1, warna, label, opacity in ALERT_ZONES:
-        y0_clip = max(y0, Y_AXIS_MIN)
-        y1_clip = min(y1, Y_AXIS_MAX)
+        y0_clip = max(y0, dynamic_min)
+        y1_clip = min(y1, dynamic_max)
+        
         if y0_clip >= y1_clip:
             continue
+            
         fig.add_hrect(
-            y0=y0_clip, y1=y1_clip,
+            y0=y0, y1=y1,
             fillcolor=warna, opacity=opacity,
             line_width=0, layer="below",
         )
@@ -383,13 +382,35 @@ def _add_alert_zones(fig: go.Figure) -> None:
 
 
 def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame, data_dsda: Optional[dict]) -> go.Figure:
+    
+    # --- 0. MENGHITUNG BATAS DINAMIS (Y-AXIS) BERDASARKAN DATA TAMPIL ---
+    all_mins = [
+        df_filtered[COL_OBSERVASI].min(), df_filtered[COL_UTIDE].min(),
+        df_filtered[COL_HIBRIDA].min(), df_lstm_filtered[COL_LSTM].min()
+    ]
+    valid_mins = [v for v in all_mins if pd.notna(v)]
+    current_min = min(valid_mins) if valid_mins else 100
+    
+    all_maxs = [
+        df_filtered[COL_OBSERVASI].max(), df_filtered[COL_UTIDE].max(),
+        df_filtered[COL_HIBRIDA].max(), df_lstm_filtered[COL_LSTM].max()
+    ]
+    valid_maxs = [v for v in all_maxs if pd.notna(v)]
+    current_max = max(valid_maxs) if valid_maxs else 280
+
+    # Bawah: Otomatis ngikutin data terendah dikurangi margin 10 cm (Anti-melayang)
+    dynamic_min = current_min - 10
+    
+    # Atas: Kunci di 280. Tapi kalau ada badai rob (> 270), otomatis melar ke atas
+    dynamic_max = max(280, current_max + 10)
+
     fig = go.Figure()
 
-    # 0. Pita gradasi level siaga di lapisan paling belakang
-    _add_alert_zones(fig)
+    # 1. Pita gradasi level siaga di lapisan paling belakang
+    _add_alert_zones(fig, dynamic_min, dynamic_max)
 
     # --- URUTAN TRACE DIRUBAH (PLOTLY MENGGAMBAR DARI BAWAH KE ATAS) ---
-    # 1. Observasi Historis digambar PERTAMA agar menjadi Layer Paling Dasar (Baseline).
+    # 2. Observasi Historis digambar PERTAMA agar menjadi Layer Paling Dasar (Baseline).
     if df_filtered[COL_OBSERVASI].notna().sum() > 0:
         fig.add_trace(go.Scatter(
             x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI],
@@ -399,7 +420,7 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
             connectgaps=False,
         ))
 
-    # 2. Prediksi UTide Murni (Transparan, numpang di atas observasi)
+    # 3. Prediksi UTide Murni (Transparan, numpang di atas observasi)
     fig.add_trace(go.Scatter(
         x=df_filtered[COL_DATETIME], y=df_filtered[COL_UTIDE],
         mode="lines", name="Prediksi UTide Murni (Astronomis)",
@@ -407,7 +428,7 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
         line=dict(color=COLOR_PALETTE["utide"], width=1.5, shape="spline", smoothing=0.9),
     ))
 
-    # 3. Prediksi LSTM Murni (Transparan, numpang di atas observasi)
+    # 4. Prediksi LSTM Murni (Transparan, numpang di atas observasi)
     fig.add_trace(go.Scatter(
         x=df_lstm_filtered[COL_DATETIME], y=df_lstm_filtered[COL_LSTM],
         mode="lines", name="Prediksi LSTM Murni (Non-Astronomis)",
@@ -415,7 +436,7 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
         line=dict(color=COLOR_PALETTE["lstm"], width=1.5, shape="spline", smoothing=0.9),
     ))
 
-    # 4. Prediksi Hibrida (Transparan 65%, numpang paling atas agar menonjol)
+    # 5. Prediksi Hibrida (Transparan 65%, numpang paling atas agar menonjol)
     fig.add_trace(go.Scatter(
         x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA],
         mode="lines", name="Prediksi Hibrida (UTide + LSTM)",
@@ -423,7 +444,7 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
         line=dict(color=COLOR_PALETTE["hibrida"], width=2.0, shape="spline", smoothing=0.9),
     ))
 
-    # 5. Garis vertikal waktu sekarang
+    # 6. Garis vertikal waktu sekarang
     if data_dsda and data_dsda["tma"] is not None:
         waktu_sekarang_jam = datetime.now().replace(minute=0, second=0, microsecond=0)
         min_date = df_filtered[COL_DATETIME].min()
@@ -441,7 +462,7 @@ def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataF
         yaxis=dict(
             title=dict(text="Tinggi Air (cm)", font=dict(size=11, family="Arial")),
             tickfont=dict(size=10, family="Arial"),
-            range=[Y_AXIS_MIN, Y_AXIS_MAX],
+            range=[dynamic_min, dynamic_max], # 🔥 Terapkan rentang Y dinamis
         ),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, family="Arial")),
         font=dict(family="Arial, Helvetica, sans-serif", color="#1E293B"),
@@ -509,11 +530,11 @@ def main() -> None:
         render_empty_kpi_cards()
 
     st.markdown(
-        f\"\"\"
+        f"""
         <div style="display: flex; align-items: baseline; margin: 8px 0 3px 0;">
             <h3 style="margin:0; padding:0; font-size:19px; font-weight:600; color:#1E293B;">📈 Grafik Analisis Perbandingan: {pilihan_mode}</h3>
         </div>
-        \"\"\",
+        """,
         unsafe_allow_html=True,
     )
 
@@ -525,7 +546,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-"""
-with open('app.py', 'w', encoding='utf-8') as f:
-    f.write(code)
-print("File app.py updated successfully.")
