@@ -2,7 +2,7 @@
 Dashboard Monitoring Pasut Hibrida (UTide + LSTM) - Stasiun Pasar Ikan, Jakarta.
 
 Aplikasi Streamlit ini menampilkan perbandingan performa tiga metode
-prediksi pasang surut air laut.
+prediksi pasang surut air laut dengan data observasi independen.
 """
 
 from __future__ import annotations
@@ -26,8 +26,10 @@ import re
 PAGE_TITLE = "Dashboard Pasut Hibrida Pasar Ikan"
 PAGE_ICON = "🌊"
 
+# 3 File Master Sekarang!
 DATA_FILE_HIBRIDA = "HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv"
 DATA_FILE_LSTM = "HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv"
+DATA_FILE_OBSERVASI = "HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv"
 
 COL_DATETIME = "Datetime"
 COL_OBSERVASI = "TMA_Pasar_Ikan"
@@ -151,10 +153,26 @@ def inject_custom_css() -> None:
         unsafe_allow_html=True,
     )
 
-@st.cache_data
+@st.cache_data(ttl=600)
 def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
+    # 1. Baca data Prediksi (Grid Utuh)
     df_hibrida = pd.read_csv(DATA_FILE_HIBRIDA, parse_dates=[COL_DATETIME])
     df_lstm = pd.read_csv(DATA_FILE_LSTM, parse_dates=[COL_DATETIME])
+    
+    # 2. Baca data Observasi (Independent File)
+    try:
+        df_obs = pd.read_csv(DATA_FILE_OBSERVASI, parse_dates=[COL_DATETIME])
+    except FileNotFoundError:
+        # Jika file belum ada, buat dataframe kosong untuk mencegah error
+        df_obs = pd.DataFrame({COL_DATETIME: pd.Series(dtype='datetime64[ns]'), COL_OBSERVASI: pd.Series(dtype='float64')})
+
+    # 3. Hapus kolom observasi bawaan di df_hibrida jika masih ada (agar tidak bentrok)
+    if COL_OBSERVASI in df_hibrida.columns:
+        df_hibrida = df_hibrida.drop(columns=[COL_OBSERVASI])
+        
+    # 4. GABUNGKAN (Merge) berdasarkan Datetime. Gap/bolong otomatis jadi NaN.
+    df_hibrida = pd.merge(df_hibrida, df_obs[[COL_DATETIME, COL_OBSERVASI]], on=COL_DATETIME, how='left')
+    
     return df_hibrida, df_lstm
 
 def filter_by_preset(df: pd.DataFrame, preset_name: str, custom_start=None, custom_end=None) -> pd.Series:
@@ -262,9 +280,10 @@ def render_empty_kpi_cards() -> None:
 def build_comparison_chart(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame, data_dsda: Optional[dict]) -> go.Figure:
     fig = go.Figure()
     
-    # 1. Kurva Observasi Historis
+    # 1. Kurva Observasi Historis (Sekarang ditarik dari file observasi terpisah!)
     if df_filtered[COL_OBSERVASI].notna().sum() > 0:
-        fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI], mode="lines", name="Observasi Stasiun (TMA Aktual)", line=dict(color=COLOR_PALETTE["observasi"], width=2.5)))
+        # Menambahkan parameter connectgaps=False agar garis terputus jika ada missing data
+        fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI], mode="lines", name="Observasi Stasiun (TMA Aktual)", line=dict(color=COLOR_PALETTE["observasi"], width=2.5), connectgaps=False))
         
     # 2. Kurva Prediksi UTide Murni
     fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_UTIDE], mode="lines", name="Prediksi UTide Murni (Astronomis)", line=dict(color=COLOR_PALETTE["utide"], width=2.0, dash="dot")))
@@ -313,7 +332,6 @@ def render_data_table(df_filtered: pd.DataFrame, df_lstm_filtered: pd.DataFrame)
         COL_HIBRIDA: df_filtered[COL_HIBRIDA],
     })
     
-    # 💎 DIUPDATE PADA TAHUN 2026: Menggunakan format lebar 'stretch' baru Streamlit
     st.dataframe(df_tampilan.reset_index(drop=True), width='stretch')
     csv_data = df_tampilan.to_csv(index=False).encode("utf-8")
     st.download_button(label="📥 Unduh Data Potongan Kerja Ini (.CSV)", data=csv_data, file_name="DATA_INSPEKSI_PASUT_HIBRIDA.csv", mime="text/csv", width='stretch')
@@ -372,7 +390,6 @@ def main() -> None:
     
     fig = build_comparison_chart(df_filtered, df_lstm_filtered, data_dsda)
     
-    # 💎 DIUPDATE PADA TAHUN 2026: Menggunakan format lebar 'stretch' baru Streamlit
     st.plotly_chart(fig, width='stretch', config={"displayModeBar": False})
     render_data_table(df_filtered, df_lstm_filtered)
 
