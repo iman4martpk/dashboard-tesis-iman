@@ -91,7 +91,7 @@ PRESETS = {
         "end": "2026-01-06 00:00:00",
         "desc": "Segmen Musim Baratan dan puncak musim hujan.",
     },
-    "Studi Kasus 3: Periode Juni": {
+    "Studi Kasus 3: Periode Juni 2026": {
         "start": "2026-06-12 00:00:00",
         "end": "2026-06-19 00:00:00",
         "desc": "Segmen Musim Timuran dan minim curah hujan.",
