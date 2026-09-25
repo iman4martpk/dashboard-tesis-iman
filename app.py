@@ -388,7 +388,7 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -
     st.markdown("""
         <div class="eval-box">
             <h3 style='color:#1E293B; font-size: 18px; margin: 0px;'>🔬 Analisis Kinerja Peramalan (Evaluasi Tesis)</h3>
-            <p style='color:#64748b; font-size: 13px; margin: 5px 0 0 0;'>Modul perhitungan metrik akurasi (Akurasi, RMSE, MAE, R-Kuadrat) untuk membuktikan peningkatan performa hasil observasi.</p>
+            <p style='color:#64748b; font-size: 13px; margin: 5px 0 0 0;'>Modul perhitungan metrik akurasi (Akurasi, RMSE, MAE, Koefisien Determinasi) untuk membuktikan peningkatan performa hasil observasi.</p>
         </div>
     """, unsafe_allow_html=True)
     
@@ -471,7 +471,7 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -
         "Akurasi (%) ↑": [acc_u, acc_l, acc_h],
         "RMSE (cm) ↓": [rmse_u, rmse_l, rmse_h],
         "MAE (cm) ↓": [mae_u, mae_l, mae_h],
-        "R-Kuadrat (R²) ↑": [r2_u, r2_l, r2_h]
+        "Koefisien Determinasi (R²) ↑": [r2_u, r2_l, r2_h]
     })
 
     best_rmse = df_metrics["RMSE (cm) ↓"].min()
@@ -483,8 +483,8 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -
     st.dataframe(
         df_metrics.style
         .highlight_min(subset=["RMSE (cm) ↓", "MAE (cm) ↓"], color='#bbf7d0', axis=0)
-        .highlight_max(subset=["Akurasi (%) ↑", "R-Kuadrat (R²) ↑"], color='#bbf7d0', axis=0)
-        .format({"Akurasi (%) ↑": "{:.2f}%", "RMSE (cm) ↓": "{:.3f}", "MAE (cm) ↓": "{:.3f}", "R-Kuadrat (R²) ↑": "{:.3f}"}),
+        .highlight_max(subset=["Akurasi (%) ↑", "Koefisien Determinasi (R²) ↑"], color='#bbf7d0', axis=0)
+        .format({"Akurasi (%) ↑": "{:.2f}%", "RMSE (cm) ↓": "{:.3f}", "MAE (cm) ↓": "{:.3f}", "Koefisien Determinasi (R²) ↑": "{:.3f}"}),
         use_container_width=True,
         hide_index=True
     )
