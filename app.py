@@ -81,20 +81,20 @@ PRESETS = {
         "end": END_REALTIME,
         "desc": "Kondisi operasional berjalan (2 hari lalu s.d 2 hari ke depan).",
     },
-    "Studi Kasus 1: Periode Mei": {
-        "start": "2026-05-14 00:00:00",
-        "end": "2026-05-21 00:00:00",
-        "desc": "Segmen awal bulan Mei.",
+    "Studi Kasus 1: Periode Desember 2025": {
+        "start": "2025-12-02 00:00:00",
+        "end": "2025-12-09 00:00:00",
+        "desc": "Segmen Musim Baratan dan puncak musim hujan.",
     },
-    "Studi Kasus 2: Periode Juni": {
+    "Studi Kasus 2: Periode Januari 2026": {
+        "start": "2025-12-31 00:00:00",
+        "end": "2026-01-06 00:00:00",
+        "desc": "Segmen Musim Baratan dan puncak musim hujan.",
+    },
+    "Studi Kasus 3: Periode Juni": {
         "start": "2026-06-12 00:00:00",
         "end": "2026-06-19 00:00:00",
-        "desc": "Fase anomali residu meteorologis tinggi.",
-    },
-    "Studi Kasus 3: Periode Juli": {
-        "start": "2026-07-12 00:00:00",
-        "end": "2026-07-19 00:00:00",
-        "desc": "Batas data aktual observasi lapangan Tesis.",
+        "desc": "Segmen Musim Timuran dan minim curah hujan.",
     },
     "🔮 MODE FORECASTING MASA DEPAN": {
         "start": "2026-07-21 19:00:00",
