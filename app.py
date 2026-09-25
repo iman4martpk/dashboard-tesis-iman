@@ -96,6 +96,11 @@ PRESETS = {
         "end": "2026-06-19 00:00:00",
         "desc": "Segmen Musim Timuran dan minim curah hujan.",
     },
+    "Studi Kasus 4: Periode Juli 2026": {
+        "start": "2026-07-10 00:00:00",
+        "end": "2026-07-17 00:00:00",
+        "desc": "Segmen Musim Timuran dan minim curah hujan.",
+    },
     "🔮 MODE FORECASTING MASA DEPAN": {
         "start": "2026-07-21 19:00:00",
         "end": "2026-12-31 23:00:00",
@@ -339,7 +344,6 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict])
     fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (Integrasi Keduanya)", line=dict(color=COLOR_PALETTE["hibrida"], width=2.0, shape="spline", smoothing=0.9)))
 
     if data_dsda and data_dsda["tma"] is not None:
-        # 🔥 FIX: Diubah menjadi get_now_jkt() murni tanpa pembulatan jam, agar menitnya tampil riil
         waktu_sekarang_jam = get_now_jkt()
         min_date = df_filtered[COL_DATETIME].min()
         max_date = df_filtered[COL_DATETIME].max()
@@ -384,7 +388,7 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -
     st.markdown("""
         <div class="eval-box">
             <h3 style='color:#1E293B; font-size: 18px; margin: 0px;'>🔬 Analisis Kinerja Peramalan (Evaluasi Tesis)</h3>
-            <p style='color:#64748b; font-size: 13px; margin: 5px 0 0 0;'>Modul perhitungan metrik akurasi (Akurasi, RMSE, MAE, Korelasi Pearson) untuk membuktikan peningkatan performa hasil observasi.</p>
+            <p style='color:#64748b; font-size: 13px; margin: 5px 0 0 0;'>Modul perhitungan metrik akurasi (Akurasi, RMSE, MAE, R-Kuadrat) untuk membuktikan peningkatan performa hasil observasi.</p>
         </div>
     """, unsafe_allow_html=True)
     
@@ -444,17 +448,18 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -
         rmse = np.sqrt(np.mean((obs - pred)**2))
         mae = np.mean(np.abs(obs - pred))
         corr = obs.corr(pred)
+        r2 = (corr ** 2) if pd.notna(corr) else 0.0
         
         # Akurasi (%) berbasis MAPE
         safe_obs = np.where(obs == 0, 1e-6, obs) 
         mape = np.mean(np.abs((obs - pred) / safe_obs)) * 100
         akurasi = max(0.0, 100.0 - mape)
         
-        return rmse, mae, corr, akurasi
+        return rmse, mae, r2, akurasi
 
-    rmse_u, mae_u, corr_u, acc_u = calc_metrics(utide)
-    rmse_l, mae_l, corr_l, acc_l = calc_metrics(lstm)
-    rmse_h, mae_h, corr_h, acc_h = calc_metrics(hibrida)
+    rmse_u, mae_u, r2_u, acc_u = calc_metrics(utide)
+    rmse_l, mae_l, r2_l, acc_l = calc_metrics(lstm)
+    rmse_h, mae_h, r2_h, acc_h = calc_metrics(hibrida)
 
     # ---------------- BIKIN TABEL METRIK ----------------
     df_metrics = pd.DataFrame({
@@ -466,7 +471,7 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -
         "Akurasi (%) ↑": [acc_u, acc_l, acc_h],
         "RMSE (cm) ↓": [rmse_u, rmse_l, rmse_h],
         "MAE (cm) ↓": [mae_u, mae_l, mae_h],
-        "Korelasi (r) ↑": [corr_u, corr_l, corr_h]
+        "R-Kuadrat (R²) ↑": [r2_u, r2_l, r2_h]
     })
 
     best_rmse = df_metrics["RMSE (cm) ↓"].min()
@@ -478,8 +483,8 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -
     st.dataframe(
         df_metrics.style
         .highlight_min(subset=["RMSE (cm) ↓", "MAE (cm) ↓"], color='#bbf7d0', axis=0)
-        .highlight_max(subset=["Akurasi (%) ↑", "Korelasi (r) ↑"], color='#bbf7d0', axis=0)
-        .format({"Akurasi (%) ↑": "{:.2f}%", "RMSE (cm) ↓": "{:.3f}", "MAE (cm) ↓": "{:.3f}", "Korelasi (r) ↑": "{:.3f}"}),
+        .highlight_max(subset=["Akurasi (%) ↑", "R-Kuadrat (R²) ↑"], color='#bbf7d0', axis=0)
+        .format({"Akurasi (%) ↑": "{:.2f}%", "RMSE (cm) ↓": "{:.3f}", "MAE (cm) ↓": "{:.3f}", "R-Kuadrat (R²) ↑": "{:.3f}"}),
         use_container_width=True,
         hide_index=True
     )
