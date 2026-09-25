@@ -439,18 +439,24 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -
         st.warning("⚠️ Data observasi tidak mencukupi untuk dihitung metrik akurasinya pada rentang waktu ini.")
         return
 
-    obs = eval_df.loc[valid_idx, COL_OBSERVASI]
-    utide = eval_df.loc[valid_idx, COL_UTIDE]
-    lstm = eval_df.loc[valid_idx, COL_LSTM]
-    hibrida = eval_df.loc[valid_idx, COL_HIBRIDA]
+    obs = eval_df.loc[valid_idx, COL_OBSERVASI].values
+    utide = eval_df.loc[valid_idx, COL_UTIDE].values
+    lstm = eval_df.loc[valid_idx, COL_LSTM].values
+    hibrida = eval_df.loc[valid_idx, COL_HIBRIDA].values
 
     def calc_metrics(pred):
-        rmse = np.sqrt(np.mean((obs - pred)**2))
+        # 1. Metrik Kesalahan Fisik (cm)
+        rmse = np.sqrt(np.mean((obs - pred) ** 2))
         mae = np.mean(np.abs(obs - pred))
-        corr = obs.corr(pred)
-        r2 = (corr ** 2) if pd.notna(corr) else 0.0
         
-        # Akurasi (%) berbasis MAPE
+        # 2. PERBAIKAN FORMULA R-KUADRAT (Koefisien Determinasi Sejati)
+        # SS_res = Sum of Squares Residual (Jumlah kuadrat eror model)
+        # SS_tot = Sum of Squares Total (Jumlah kuadrat variansi data aktual)
+        ss_res = np.sum((obs - pred) ** 2)
+        ss_tot = np.sum((obs - np.mean(obs)) ** 2)
+        r2 = 1.0 - (ss_res / ss_tot) if ss_tot != 0 else 0.0
+        
+        # 3. Akurasi (%) berbasis MAPE
         safe_obs = np.where(obs == 0, 1e-6, obs) 
         mape = np.mean(np.abs((obs - pred) / safe_obs)) * 100
         akurasi = max(0.0, 100.0 - mape)
