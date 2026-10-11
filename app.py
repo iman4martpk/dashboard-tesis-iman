@@ -255,11 +255,11 @@ def render_header() -> None:
 
 def render_summary_box(pilihan_mode: str, data_dsda: Optional[dict]) -> None:
     if data_dsda:
-        info_realtime = f" <span style='font-size: 20px; font-weight: 900; color: #94a3b8; margin: 0 8px; vertical-align: text-bottom;'>|</span> <span class='live-dot'>🔴</span> <b>DSDA Live (per 15 mnt) - Update {data_dsda['jam']}:</b> <span class='live-val'>{data_dsda['tma']} cm</span>"
+        info_realtime = f" <span style='font-size: 20px; font-weight: 900; color: #1e293b; margin: 0 8px; vertical-align: text-bottom;'>|</span> <span class='live-dot'>🔴</span> <b>DSDA Live (per 15 mnt) - Update {data_dsda['jam']}:</b> <span class='live-val'>{data_dsda['tma']} cm</span>"
     else:
-        info_realtime = " <span style='font-size: 20px; font-weight: 900; color: #94a3b8; margin: 0 8px; vertical-align: text-bottom;'>|</span> 🔴 <b>DSDA Live (per 15 mnt):</b> <span style='color:#64748B;'>Offline/Delay</span>"
+        info_realtime = " <span style='font-size: 20px; font-weight: 900; color: #1e293b; margin: 0 8px; vertical-align: text-bottom;'>|</span> 🔴 <b>DSDA Live (per 15 mnt):</b> <span style='color:#64748B;'>Offline/Delay</span>"
         
-    st.markdown(f"""<div class="summary-box"><span class="summary-text">📍 <b>Stasiun:</b> Pasar Ikan, Jakarta <span style="font-size: 20px; font-weight: 900; color: #94a3b8; margin: 0 8px; vertical-align: text-bottom;">|</span> 🛡️ <b>Mode:</b> {PRESETS[pilihan_mode]['desc']}{info_realtime}</span></div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="summary-box"><span class="summary-text">📍 <b>Stasiun:</b> Pasar Ikan, Jakarta <span style="font-size: 20px; font-weight: 900; color: #1e293b; margin: 0 8px; vertical-align: text-bottom;">|</span> 🛡️ <b>Mode:</b> {PRESETS[pilihan_mode]['desc']}{info_realtime}</span></div>""", unsafe_allow_html=True)
 
 def _metrik_badge(metrik: MetodeMetrik) -> str:
     if metrik.is_terbaik: return '<span style="color: #22c55e; font-size: 0.65rem; font-weight: bold;">🏆 TERENDAH</span>'
