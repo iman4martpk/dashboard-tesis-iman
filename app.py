@@ -71,7 +71,7 @@ PRESETS = {
     "📊 Ringkasan Real-Time (Jendela 7 Hari)": {
         "start": START_REALTIME,
         "end": END_REALTIME,
-        "desc": "tampilan grafik 3 hari sebelum s.d 4 hari ke depan.",
+        "desc": "Jendela pengamatan H-3 s.d. H+4.",
     },
     "Studi Kasus 1: Periode Desember 2025": {
         "start": "2025-12-02 00:00:00",
