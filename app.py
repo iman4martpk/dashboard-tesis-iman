@@ -151,7 +151,7 @@ def inject_custom_css() -> None:
         div[data-testid="stMetricLabel"] {{ color: #64748b !important; font-weight: 600 !important; font-size: 0.68rem !important; margin-bottom: -4px !important; }}
         [data-testid="stMetricValue"] {{ font-size: 14px !important; font-weight: 700 !important; color: #0f172a !important; }}
         .summary-box {{ background-color: #f1f5f9 !important; padding: 6px 12px !important; border-radius: 8px !important; margin-top: 4px !important; margin-bottom: 8px !important; border-left: 5px solid {COLOR_PALETTE['primary']} !important; text-align: center !important; }}
-        .summary-text {{ font-family: Arial, Helvetica, sans-serif !important; font-weight: 600; font-size: 1rem; color: #1e293b; }}
+        .summary-text {{ font-family: Arial, Helvetica, sans-serif !important; font-weight: 600; font-size: 0.9rem; color: #1e293b; }}
         .eval-box {{ background-color: #f8fafc; padding: 15px; border-radius: 8px; border-left: 5px solid {COLOR_PALETTE['primary']}; margin-bottom: 15px; }}
         
         /* Animasi Berkedip (Blinking) untuk Indikator Live */
@@ -165,7 +165,7 @@ def inject_custom_css() -> None:
             50% {{ color: #EF4444; text-shadow: 0 0 5px rgba(220,38,38,0.5); }}
         }}
         .live-dot {{ display: inline-block; animation: pulse-dot 1.5s infinite ease-in-out; }}
-        .live-val {{ animation: flash-text 2s infinite; font-weight: 800; font-size: 1.1rem; }}
+        .live-val {{ animation: flash-text 2s infinite; font-weight: 800; font-size: 0.9rem; }}
         </style>
         """,
         unsafe_allow_html=True,
