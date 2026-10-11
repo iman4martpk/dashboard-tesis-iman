@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """
-Scraper Posko Banjir DSDA -> Update HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv
-
-Perilaku:
-- Mengambil data TMA Pasar Ikan dari https://poskobanjir.dsdadki.web.id/
-- Membulatkan timestamp ke jam pas (:00:00) agar presisi dengan master tesis
-- Menambahkan (append) baris baru jika jam tersebut belum tercatat di CSV
+Scraper Posko Banjir DSDA -> Simpan ke 2 File CSV Terpisah:
+1. HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv (Per Jam Pas untuk Evaluasi ML)
+2. HASIL_SCRAPING_15_MENITAN_DSDA.csv (Per 15 Menit untuk UI/Grafik Realtime)
 """
 
 import os
@@ -21,24 +18,16 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 
-# --- KONFIGURASI FILE & FILTER TESIS IMAN ---
+# --- KONFIGURASI FILE ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FILE_OBSERVASI = os.path.join(BASE_DIR, 'HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv')
+FILE_HOURLY = os.path.join(BASE_DIR, 'HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv')
+FILE_15MIN = os.path.join(BASE_DIR, 'HASIL_SCRAPING_15_MENITAN_DSDA.csv')
 
 LIMIT_SENSOR_ERROR_CM = 350.0  # Batas Atas (cm)
 MIN_VALID_VALUE_CM = 50.0      # Batas Bawah (cm)
 
 
-def save_to_csv(filename, waktu, nilai_cm):
-    # FILTER: Cek batas bawah dan batas atas
-    if nilai_cm is None or nilai_cm > LIMIT_SENSOR_ERROR_CM or nilai_cm < MIN_VALID_VALUE_CM:
-        print(f"DEBUG: Nilai {nilai_cm} cm diblokir (di luar range {MIN_VALID_VALUE_CM} - {LIMIT_SENSOR_ERROR_CM} cm)")
-        return
-
-    # 1. PEMBULATAN KE JAM BULAT PAS (20:22 -> 20:00:00)
-    waktu_fixed = waktu.replace(minute=0, second=0, microsecond=0)
-    
-    # Format string waktu untuk CSV Tesis
+def append_to_csv(filename, waktu_fixed, nilai_cm, label_tipe):
     waktu_str = waktu_fixed.strftime('%Y-%m-%d %H:%M:%S')
     waktu_check = waktu_fixed.strftime('%Y-%m-%d %H:%M')
     
@@ -46,22 +35,36 @@ def save_to_csv(filename, waktu, nilai_cm):
 
     if not os.path.exists(filename):
         new_data.to_csv(filename, index=False)
-        print(f"✅ CSV Baru Dibuat: {waktu_str} -> {nilai_cm} cm")
+        print(f"✅ CSV Baru [{label_tipe}]: {waktu_str} -> {nilai_cm} cm")
     else:
         try:
             old_data = pd.read_csv(filename)
             if 'Datetime' in old_data.columns and not old_data.empty:
-                # Cek agar tidak duplikat di jam yang sama
                 old_times = pd.to_datetime(old_data['Datetime'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M')
                 if waktu_check in old_times.values:
-                    print(f"⚠️ Data waktu {waktu_check} sudah ada di CSV. Skip nulis.")
+                    print(f"⚠️ [{label_tipe}] Waktu {waktu_check} sudah ada. Skip nulis.")
                     return
             
             combined = pd.concat([old_data, new_data]).sort_values('Datetime')
             combined.to_csv(filename, index=False)
-            print(f"✅ BERHASIL NULIS KE CSV: {waktu_str} -> {nilai_cm} cm")
+            print(f"✅ BERHASIL NULIS [{label_tipe}]: {waktu_str} -> {nilai_cm} cm")
         except Exception as e:
-            print(f"Error simpan CSV: {e}")
+            print(f"Error simpan CSV [{label_tipe}]: {e}")
+
+
+def process_and_save(waktu_sekarang, nilai_cm):
+    if nilai_cm is None or nilai_cm > LIMIT_SENSOR_ERROR_CM or nilai_cm < MIN_VALID_VALUE_CM:
+        print(f"DEBUG: Nilai {nilai_cm} cm diblokir (di luar range valid).")
+        return
+
+    # 1. SIMPAN KE FILE HOURLY (Dibulatkan ke Jam Pas :00:00)
+    waktu_hourly = waktu_sekarang.replace(minute=0, second=0, microsecond=0)
+    append_to_csv(FILE_HOURLY, waktu_hourly, nilai_cm, "HOURLY TESIS")
+
+    # 2. SIMPAN KE FILE 15-MENITAN (Dibulatkan ke :00, :15, :30, :45)
+    menit_15 = (waktu_sekarang.minute // 15) * 15
+    waktu_15min = waktu_sekarang.replace(minute=menit_15, second=0, microsecond=0)
+    append_to_csv(FILE_15MIN, waktu_15min, nilai_cm, "15-MENIT DSDA")
 
 
 def run_scraper_dsda():
@@ -76,14 +79,10 @@ def run_scraper_dsda():
 
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-
-        print("\n--- Scraping Posko Banjir DSDA Pasar Ikan (Deep Scan 3.0) ---")
         driver.get("https://poskobanjir.dsdadki.web.id/")
         time.sleep(15)
 
-        print("Mencari baris Pasar Ikan...")
         all_elements = driver.find_elements(By.XPATH, "//*[contains(text(), 'Pasar Ikan')]/ancestor::tr")
-
         for row in all_elements:
             row_text = row.get_attribute("innerText")
             nums = re.findall(r"\b(\d{2,3})\b", row_text)
@@ -91,13 +90,11 @@ def run_scraper_dsda():
                 val_n = int(n)
                 if MIN_VALID_VALUE_CM <= val_n <= LIMIT_SENSOR_ERROR_CM:
                     nilai_cm = float(val_n)
-                    print(f"✅ DSDA Berhasil (Row Text): {nilai_cm} cm")
                     break
             if nilai_cm:
                 break
 
         if not nilai_cm:
-            print("Skenario 1 gagal, mencari snippet text body...")
             all_text = driver.find_element(By.TAG_NAME, "body").get_attribute("innerText")
             pos = all_text.find("Pasar Ikan")
             if pos != -1:
@@ -107,11 +104,10 @@ def run_scraper_dsda():
                     val_n = int(n)
                     if MIN_VALID_VALUE_CM <= val_n <= LIMIT_SENSOR_ERROR_CM:
                         nilai_cm = float(val_n)
-                        print(f"✅ DSDA Berhasil (Snippet): {nilai_cm} cm")
                         break
 
     except Exception as e:
-        print(f"❌ DSDA Gagal: {e}")
+        print(f"❌ Scraper Error: {e}")
     finally:
         if driver:
             driver.quit()
@@ -124,9 +120,7 @@ if __name__ == "__main__":
     sekarang = datetime.now(tz_jkt).replace(tzinfo=None)
     print(f"\nEksekusi: {sekarang.strftime('%Y-%m-%d %H:%M:%S')} WIB")
 
-    # Scrape data Posko Banjir DSDA Pasar Ikan
     nilai_dsda_cm = run_scraper_dsda()
 
-    # Simpan ke file CSV Observasi Tesis
     if nilai_dsda_cm is not None:
-        save_to_csv(FILE_OBSERVASI, sekarang, nilai_dsda_cm)
+        process_and_save(sekarang, nilai_dsda_cm)
