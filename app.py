@@ -64,14 +64,14 @@ ALERT_ZONES = [
 ]
 
 HARI_INI = get_now_jkt()
-START_REALTIME = (HARI_INI - timedelta(days=2)).strftime("%Y-%m-%d 00:00:00")
-END_REALTIME = (HARI_INI + timedelta(days=2)).strftime("%Y-%m-%d 23:00:00")
+START_REALTIME = (HARI_INI - timedelta(days=3)).strftime("%Y-%m-%d 00:00:00")
+END_REALTIME = (HARI_INI + timedelta(days=4)).strftime("%Y-%m-%d 23:00:00")
 
 PRESETS = {
-    "📊 Ringkasan Real-Time (Jendela 4 Hari)": {
+    "📊 Ringkasan Real-Time (Jendela 7 Hari)": {
         "start": START_REALTIME,
         "end": END_REALTIME,
-        "desc": "2 hari lalu s.d 2 hari ke depan.",
+        "desc": "tampilan grafik 3 hari sebelum s.d 4 hari ke depan.",
     },
     "Studi Kasus 1: Periode Desember 2025": {
         "start": "2025-12-02 00:00:00",
