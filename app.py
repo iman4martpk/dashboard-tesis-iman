@@ -308,11 +308,21 @@ def _add_alert_zones(fig: go.Figure, dynamic_min: float, dynamic_max: float) -> 
         fig.add_annotation(xref="paper", yref="y", x=0.005, y=(y0_clip + y1_clip) / 2, text=f"<b>{label}</b>", showarrow=False, xanchor="left", yanchor="middle", font=dict(color="#1E293B", size=10, family="Arial"), bgcolor="rgba(255,255,255,0.55)")
 
 def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict]) -> go.Figure:
-    all_mins = [df_filtered[COL_OBSERVASI].min(), df_filtered[COL_UTIDE].min(), df_filtered[COL_HIBRIDA].min(), df_filtered[COL_LSTM].min()]
+    all_mins = [
+        df_filtered[COL_OBSERVASI].min(), 
+        df_filtered[COL_UTIDE].min(), 
+        df_filtered[COL_HIBRIDA].min(), 
+        df_filtered[COL_LSTM].min()
+    ]
     valid_mins = [v for v in all_mins if pd.notna(v)]
     current_min = min(valid_mins) if valid_mins else 100
     
-    all_maxs = [df_filtered[COL_OBSERVASI].max(), df_filtered[COL_UTIDE].max(), df_filtered[COL_HIBRIDA].max(), df_filtered[COL_LSTM].max()]
+    all_maxs = [
+        df_filtered[COL_OBSERVASI].max(), 
+        df_filtered[COL_UTIDE].max(), 
+        df_filtered[COL_HIBRIDA].max(), 
+        df_filtered[COL_LSTM].max()
+    ]
     valid_maxs = [v for v in all_maxs if pd.notna(v)]
     current_max = max(valid_maxs) if valid_maxs else 280
 
@@ -323,7 +333,75 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict])
     _add_alert_zones(fig, dynamic_min, dynamic_max)
 
     if df_filtered[COL_OBSERVASI].notna().sum() > 0:
-        fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI], mode="lines", name="Observasi Stasiun (TMA Aktual)", line=dict(color=COLOR_PALETTE["observasi"], width=2.5, shape="spline", smoothing=0.9), connectgaps=False))
+        fig.add_trace(
+            go.Scatter(
+                x=df_filtered[COL_DATETIME], 
+                y=df_filtered[COL_OBSERVASI], 
+                mode="lines", 
+                name="Observasi Stasiun (TMA Aktual)", 
+                line=dict(color=COLOR_PALETTE["observasi"], width=2.5, shape="spline", smoothing=0.9), 
+                connectgaps=False
+            )
+        )
 
-    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_UTIDE], mode="lines", name="Prediksi UTide (Pendekatan Astronomis)", line=dict(color=COLOR_PALETTE["utide"], width=1.5, shape="spline", smoothing=0.9)))
-    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_LSTM], mode="lines", name="Prediksi LSTM (Pendekatan Data-Driven)", line=dict(color=COLOR_
+    fig.add_trace(
+        go.Scatter(
+            x=df_filtered[COL_DATETIME], 
+            y=df_filtered[COL_UTIDE], 
+            mode="lines", 
+            name="Prediksi UTide (Pendekatan Astronomis)", 
+            line=dict(color=COLOR_PALETTE["utide"], width=1.5, shape="spline", smoothing=0.9)
+        )
+    )
+    
+    fig.add_trace(
+        go.Scatter(
+            x=df_filtered[COL_DATETIME], 
+            y=df_filtered[COL_LSTM], 
+            mode="lines", 
+            name="Prediksi LSTM (Pendekatan Data-Driven)", 
+            line=dict(color=COLOR_PALETTE["lstm"], width=1.5, shape="spline", smoothing=0.9)
+        )
+    )
+    
+    fig.add_trace(
+        go.Scatter(
+            x=df_filtered[COL_DATETIME], 
+            y=df_filtered[COL_HIBRIDA], 
+            mode="lines", 
+            name="Prediksi Hibrida (Integrasi Keduanya)", 
+            line=dict(color=COLOR_PALETTE["hibrida"], width=2.0, shape="spline", smoothing=0.9)
+        )
+    )
+
+    if data_dsda and data_dsda["tma"] is not None:
+        waktu_sekarang_jam = get_now_jkt()
+        min_date = df_filtered[COL_DATETIME].min()
+        max_date = df_filtered[COL_DATETIME].max()
+        if pd.notna(min_date) and pd.notna(max_date) and min_date <= waktu_sekarang_jam <= max_date:
+            jam_menit_str = waktu_sekarang_jam.strftime("%H:%M")
+            fig.add_vline(
+                x=waktu_sekarang_jam, 
+                line_width=1.5, 
+                line_dash="dot", 
+                line_color="#334155",
+                annotation_text=f" Waktu Sekarang ({jam_menit_str} WIB)", 
+                annotation_position="top right"
+            )
+
+    fig.update_layout(
+        height=430, 
+        template="plotly_white", 
+        margin=dict(l=10, r=10, t=25, b=10), 
+        hovermode="x unified", 
+        hoverlabel=dict(bgcolor="white", font_size=11, font_family="Arial"), 
+        xaxis=dict(tickfont=dict(size=10, family="Arial")), 
+        yaxis=dict(
+            title=dict(text="Tinggi Air (cm)", font=dict(size=11, family="Arial")), 
+            tickfont=dict(size=10, family="Arial"), 
+            range=[dynamic_min, dynamic_max]
+        ), 
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, family="Arial")), 
+        font=dict(family="Arial, Helvetica, sans-serif", color="#1E293B")
+    )
+    return fig
