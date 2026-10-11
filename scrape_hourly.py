@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """
-Scraper BPBD (Posko Banjir DSDA) -> Update HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv
+Scraper Posko Banjir DSDA -> Update HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv
+
+Perilaku:
+- Mengambil data TMA Pasar Ikan dari https://poskobanjir.dsdadki.web.id/
+- Membulatkan timestamp ke jam pas (:00:00) agar presisi dengan master tesis
+- Menambahkan (append) baris baru jika jam tersebut belum tercatat di CSV
 """
 
 import os
@@ -21,7 +26,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FILE_OBSERVASI = os.path.join(BASE_DIR, 'HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv')
 
 LIMIT_SENSOR_ERROR_CM = 350.0  # Batas Atas (cm)
-MIN_VALID_VALUE_CM = 120.0     # Batas Bawah (cm)
+MIN_VALID_VALUE_CM = 50.0      # Batas Bawah (cm)
 
 
 def save_to_csv(filename, waktu, nilai_cm):
@@ -30,9 +35,12 @@ def save_to_csv(filename, waktu, nilai_cm):
         print(f"DEBUG: Nilai {nilai_cm} cm diblokir (di luar range {MIN_VALID_VALUE_CM} - {LIMIT_SENSOR_ERROR_CM} cm)")
         return
 
-    # Format string waktu untuk CSV Tesis Iman
-    waktu_str = waktu.strftime('%Y-%m-%d %H:%M:%S')
-    waktu_check = waktu.strftime('%Y-%m-%d %H:%M')
+    # 1. PEMBULATAN KE JAM BULAT PAS (20:22 -> 20:00:00)
+    waktu_fixed = waktu.replace(minute=0, second=0, microsecond=0)
+    
+    # Format string waktu untuk CSV Tesis
+    waktu_str = waktu_fixed.strftime('%Y-%m-%d %H:%M:%S')
+    waktu_check = waktu_fixed.strftime('%Y-%m-%d %H:%M')
     
     new_data = pd.DataFrame({'Datetime': [waktu_str], 'TMA_Pasar_Ikan': [nilai_cm]})
 
@@ -43,7 +51,7 @@ def save_to_csv(filename, waktu, nilai_cm):
         try:
             old_data = pd.read_csv(filename)
             if 'Datetime' in old_data.columns and not old_data.empty:
-                # Cek agar tidak duplikat di menit yang sama
+                # Cek agar tidak duplikat di jam yang sama
                 old_times = pd.to_datetime(old_data['Datetime'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M')
                 if waktu_check in old_times.values:
                     print(f"⚠️ Data waktu {waktu_check} sudah ada di CSV. Skip nulis.")
@@ -56,7 +64,7 @@ def save_to_csv(filename, waktu, nilai_cm):
             print(f"Error simpan CSV: {e}")
 
 
-def run_scraper_bpbd():
+def run_scraper_dsda():
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
@@ -69,7 +77,7 @@ def run_scraper_bpbd():
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-        print("\n--- Scraping BPBD Pasar Ikan (Metode Deep Scan 3.0) ---")
+        print("\n--- Scraping Posko Banjir DSDA Pasar Ikan (Deep Scan 3.0) ---")
         driver.get("https://poskobanjir.dsdadki.web.id/")
         time.sleep(15)
 
@@ -78,33 +86,32 @@ def run_scraper_bpbd():
 
         for row in all_elements:
             row_text = row.get_attribute("innerText")
-            nums = re.findall(r"(\d{3})", row_text)
+            nums = re.findall(r"\b(\d{2,3})\b", row_text)
             for n in nums:
                 val_n = int(n)
-                # Filter angka CM (biasanya 120cm - 350cm)
-                if 120 <= val_n <= 350:
+                if MIN_VALID_VALUE_CM <= val_n <= LIMIT_SENSOR_ERROR_CM:
                     nilai_cm = float(val_n)
-                    print(f"✅ BPBD Berhasil (Row Text): {nilai_cm} cm")
+                    print(f"✅ DSDA Berhasil (Row Text): {nilai_cm} cm")
                     break
             if nilai_cm:
                 break
 
         if not nilai_cm:
-            print("Skenario 1 gagal, mencari snippet...")
+            print("Skenario 1 gagal, mencari snippet text body...")
             all_text = driver.find_element(By.TAG_NAME, "body").get_attribute("innerText")
             pos = all_text.find("Pasar Ikan")
             if pos != -1:
                 snippet = all_text[pos:pos + 200]
-                nums = re.findall(r"(\d{3})", snippet)
+                nums = re.findall(r"\b(\d{2,3})\b", snippet)
                 for n in nums:
                     val_n = int(n)
-                    if 120 <= val_n <= 350:
+                    if MIN_VALID_VALUE_CM <= val_n <= LIMIT_SENSOR_ERROR_CM:
                         nilai_cm = float(val_n)
-                        print(f"✅ BPBD Berhasil (Snippet): {nilai_cm} cm")
+                        print(f"✅ DSDA Berhasil (Snippet): {nilai_cm} cm")
                         break
 
     except Exception as e:
-        print(f"❌ BPBD Gagal: {e}")
+        print(f"❌ DSDA Gagal: {e}")
     finally:
         if driver:
             driver.quit()
@@ -117,9 +124,9 @@ if __name__ == "__main__":
     sekarang = datetime.now(tz_jkt).replace(tzinfo=None)
     print(f"\nEksekusi: {sekarang.strftime('%Y-%m-%d %H:%M:%S')} WIB")
 
-    # Scrape data BPBD Pasar Ikan
-    nilai_bpbd_cm = run_scraper_bpbd()
+    # Scrape data Posko Banjir DSDA Pasar Ikan
+    nilai_dsda_cm = run_scraper_dsda()
 
-    # Simpan ke file CSV Observasi Tesis Iman
-    if nilai_bpbd_cm is not None:
-        save_to_csv(FILE_OBSERVASI, sekarang, nilai_bpbd_cm)
+    # Simpan ke file CSV Observasi Tesis
+    if nilai_dsda_cm is not None:
+        save_to_csv(FILE_OBSERVASI, sekarang, nilai_dsda_cm)
