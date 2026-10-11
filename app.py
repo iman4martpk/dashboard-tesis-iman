@@ -3,14 +3,11 @@ Dashboard Monitoring Pasut Hibrida (UTide + LSTM) - Stasiun Pasar Ikan, Jakarta.
 
 Aplikasi Streamlit ini menampilkan perbandingan performa pendekatan
 prediksi pasang surut air laut dengan data observasi independen secara REAL-TIME.
-
-* ARSITEKTUR LOKAL: Pembacaan data aktual dilakukan murni dari file CSV lokal 
-  (HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv) yang diperbarui otomatis oleh background worker.
-  Pendekatan ini menjamin aplikasi berjalan sangat cepat dan bebas dari hambatan jaringan.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
@@ -21,6 +18,12 @@ import plotly.graph_objects as go
 import pytz
 import streamlit as st
 
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
+
 # =========================================================================
 # 1. KONSTANTA & KONFIGURASI GLOBAL
 # =========================================================================
@@ -28,12 +31,12 @@ import streamlit as st
 PAGE_TITLE = "Dashboard Pasut Hibrida Pasar Ikan"
 PAGE_ICON = "🌊"
 
-# Zona waktu konsisten untuk server Streamlit Cloud / Local
+# Zona waktu konsisten untuk server Streamlit Cloud / GitHub
 TZ_JKT = pytz.timezone("Asia/Jakarta")
 
 
 def get_now_jkt() -> datetime:
-    """Mengembalikan waktu saat ini di Jakarta tanpa timezone (naive) untuk pencocokan CSV."""
+    """Mengembalikan waktu saat ini di Jakarta tanpa timezone (naive) untuk mencocokkan CSV."""
     return datetime.now(TZ_JKT).replace(tzinfo=None)
 
 
@@ -48,30 +51,30 @@ COL_UTIDE = "Prediksi_Harmonik_UTIDE"
 COL_LSTM = "Prediksi_LSTM_Murni"
 COL_HIBRIDA = "Prediksi_Hibrida_Final"
 
-# --- Palet Warna Modern ---
+# --- Palet warna baru (Lebih elegan & modern) -------------------------------
 COLOR_PALETTE = {
     "primary": "#0B3D4C",
     "success": "#22c55e",
     "danger": "#ef4444",
     # GARIS GRAFIK
     "observasi": "#475569",  # Slate-600
-    "utide": "rgba(0, 194, 255, 0.45)",  # Cyan
-    "lstm": "rgba(16, 185, 129, 0.45)",  # Emerald
+    "utide": "rgba(0, 194, 255, 0.45)",  # Cyan elektrik
+    "lstm": "rgba(16, 185, 129, 0.45)",  # Hijau Emerald
     "hibrida": "rgba(37, 99, 235, 0.65)",  # Royal Blue
-    # PITA GRADASI (Background Alert)
-    "aman": "#BAE6FD",  # Biru muda
-    "waspada": "#EA580C",  # Jingga
+    # PITA GRADASI (Background)
+    "aman": "#BAE6FD",  # Biru muda kalem
+    "waspada": "#EA580C",  # Jingga tua
     "awas": "#FF0000",  # Merah
 }
 
-# --- Zona / Pita Siaga Pada Grafik (cm) ---
+# --- Zona / pita siaga pada grafik (cm) ----------------------------------
 ALERT_ZONES = [
     (0, 230, COLOR_PALETTE["aman"], "KONDISI AMAN", 0.25),
     (230, 250, COLOR_PALETTE["waspada"], "WASPADA ROB", 0.32),
     (250, 500, COLOR_PALETTE["awas"], "AWAS ROB", 0.25),
 ]
 
-# --- Preset Jendela Waktu ---
+# --- LOGIKA DINAMIS 2 HARI KE BELAKANG & 2 HARI KE DEPAN ---
 HARI_INI = get_now_jkt()
 START_REALTIME = (HARI_INI - timedelta(days=2)).strftime("%Y-%m-%d 00:00:00")
 END_REALTIME = (HARI_INI + timedelta(days=2)).strftime("%Y-%m-%d 23:00:00")
@@ -118,45 +121,78 @@ DEFAULT_PRESET_INDEX = 0
 
 
 # =========================================================================
-# 2. FUNGSI PEMBACAAN DATA REAL-TIME LOKAL
+# 2. FUNGSI SCRAPING REAL-TIME DSDA (POSKO BANJIR)
 # =========================================================================
+URL_DSDA = "https://poskobanjir.dsdadki.web.id/"
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=600)
 def fetch_realtime_data() -> Optional[dict]:
-    """Membaca nilai observasi TMA (Pasar Ikan) langsung dari baris terakhir CSV lokal."""
+    """Scrape data real-time TMA Pasar Ikan dari Posko Banjir DSDA DKI via Selenium (Deep Scan)."""
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+
+    driver = None
+    nilai_tma_cm = None
+
     try:
-        df = pd.read_csv(DATA_FILE_OBSERVASI)
-        if df.empty:
-            return None
-
-        df[COL_DATETIME] = pd.to_datetime(
-            df[COL_DATETIME], format="mixed", errors="coerce"
+        driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()), options=options
         )
-        df_valid = df.dropna(subset=[COL_DATETIME, COL_OBSERVASI]).sort_values(
-            COL_DATETIME
+        driver.get(URL_DSDA)
+        time.sleep(12)  # Tunggu Javascript render tabel
+
+        # Skenario 1: Mencari elemen baris tabel Pasar Ikan via XPath
+        all_elements = driver.find_elements(
+            By.XPATH, "//*[contains(text(), 'Pasar Ikan')]/ancestor::tr"
         )
+        for row in all_elements:
+            row_text = row.get_attribute("innerText")
+            nums = re.findall(r"\b(\d{2,3})\b", row_text)
+            for n in nums:
+                val_n = int(n)
+                if 50 <= val_n <= 500:  # Range wajar TMA cm Pasar Ikan
+                    nilai_tma_cm = float(val_n)
+                    break
+            if nilai_tma_cm is not None:
+                break
 
-        if df_valid.empty:
-            return None
+        # Skenario 2: Deep scan snippet text body jika Skenario 1 gagal
+        if nilai_tma_cm is None:
+            all_text = driver.find_element(By.TAG_NAME, "body").get_attribute(
+                "innerText"
+            )
+            pos = all_text.find("Pasar Ikan")
+            if pos != -1:
+                snippet = all_text[pos : pos + 200]
+                nums = re.findall(r"\b(\d{2,3})\b", snippet)
+                for n in nums:
+                    val_n = int(n)
+                    if 50 <= val_n <= 500:
+                        nilai_tma_cm = float(val_n)
+                        break
 
-        latest_row = df_valid.iloc[-1]
-        waktu_terakhir = latest_row[COL_DATETIME]
-        tma_terakhir = latest_row[COL_OBSERVASI]
-
-        return {
-            "jam": waktu_terakhir.strftime("%H:%M"),
-            "tma": float(tma_terakhir),
-        }
     except Exception:
         return None
+    finally:
+        if driver:
+            driver.quit()
+
+    if nilai_tma_cm is not None:
+        jam_str = get_now_jkt().strftime("%H:%M")
+        return {"jam": jam_str, "tma": nilai_tma_cm}
+
+    return None
 
 
 # =========================================================================
-# 3. STYLING & DATA PIPELINE
+# 3. STYLING & DATA PIPELINE SINKRONISASI
 # =========================================================================
-
-
 def inject_custom_css() -> None:
     st.markdown(
         f"""
@@ -186,7 +222,10 @@ def _parse_datetime_column(series: pd.Series) -> pd.Series:
 
 
 def load_data() -> pd.DataFrame:
-    """Menggabungkan Hibrida, LSTM, dan Observasi ke dalam satu master grid waktu."""
+    """
+    Semua dataframe (Hibrida, LSTM, Observasi) dilebur ke dalam
+    satu grid waktu master (Left Merge) agar ukurannya dijamin sama.
+    """
     df_master = pd.read_csv(DATA_FILE_HIBRIDA)
     df_lstm = pd.read_csv(DATA_FILE_LSTM)
 
@@ -247,8 +286,6 @@ def filter_by_preset(
 # =========================================================================
 # 4. KOMPUTASI METRIK (KPI)
 # =========================================================================
-
-
 @dataclass
 class MetodeMetrik:
     nama: str
@@ -306,8 +343,6 @@ def compute_kpis(df_filtered: pd.DataFrame) -> Optional[KpiResult]:
 # =========================================================================
 # 5. UI RENDERING (GRAFIK & TABEL MENTAH)
 # =========================================================================
-
-
 def render_header() -> None:
     st.markdown(
         """<div class="header-text"><h2 style="margin: 0; color: #0F172A; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 1.55rem;">🌊 Dashboard Tesis: Peramalan Pasang Surut Hibrida Jakarta • Iman, S.Si.</h2></div>""",
@@ -593,10 +628,8 @@ def render_data_table(df_filtered: pd.DataFrame) -> None:
 
 
 # =========================================================================
-# 6. SEKSI EVALUASI TESIS
+# 6. SEKSI EVALUASI TESIS (ANALISIS MENDALAM)
 # =========================================================================
-
-
 def render_thesis_analysis(
     df_master: pd.DataFrame, df_filtered: pd.DataFrame
 ) -> None:
@@ -667,7 +700,7 @@ def render_thesis_analysis(
             st.info("⚠️ Silakan pilih tanggal akhir untuk memproses analisis.")
             return
 
-    # Hitung Metrik
+    # ---------------- MENGHITUNG METRIK ----------------
     valid_idx = eval_df[COL_OBSERVASI].notna()
     if valid_idx.sum() < 2:
         st.warning(
@@ -698,6 +731,7 @@ def render_thesis_analysis(
     rmse_l, mae_l, r2_l, acc_l = calc_metrics(lstm)
     rmse_h, mae_h, r2_h, acc_h = calc_metrics(hibrida)
 
+    # ---------------- BIKIN TABEL METRIK ----------------
     df_metrics = pd.DataFrame(
         {
             "Pendekatan Peramalan": [
@@ -754,8 +788,6 @@ def render_thesis_analysis(
 # =========================================================================
 # 7. SIDEBAR CONTROLS & MAIN APP
 # =========================================================================
-
-
 def render_sidebar_controls(
     df: pd.DataFrame,
 ) -> tuple[str, Optional[object], Optional[object]]:
