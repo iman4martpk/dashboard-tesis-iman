@@ -1,13 +1,13 @@
-name: 🛰️ Jalur 1 - Scraper TMA 30 Menitan (Hourly)
+name: 🛰️ Jalur 1 - Scraper TMA 15 Menitan (Hourly)
 
 on:
   schedule:
-    # Berjalan otomatis setiap 30 menit
-    - cron: '*/30 * * * *'
+    # Berjalan otomatis setiap 15 menit agar grafik rapat/nempel waktu sekarang
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     # Memunculkan tombol "Run workflow" manual di GitHub Actions
   repository_dispatch:
-    # 🎯 GERBANG UTAMA: Menerima tembakan API dari Google Apps Script lu
+    # 🎯 GERBANG UTAMA: Menerima tembakan API dari Google Apps Script
     types: [run_scrape_hourly]
 
 jobs:
@@ -33,12 +33,12 @@ jobs:
       - name: 📦 Install Dependencies Scraper
         run: |
           python -m pip install --upgrade pip
-          # Library pytz sudah ditambahkan di bawah ini untuk konversi zona waktu
-          pip install pandas requests beautifulsoup4 lxml pytz
+          # DITAMBAHKAN: selenium dan webdriver-manager agar Selenium bisa berjalan di GitHub Actions
+          pip install pandas requests beautifulsoup4 lxml pytz selenium webdriver-manager
           
       - name: 🌐 Eksekusi Script Scraper TMA
         run: |
-          # 🔄 KEMBALI KE NAMA ASLI: Aman dari perubahan masal
+          # Jalankan script scraper (pastikan nama file sesuai di repository)
           python scrape_hourly.py
         
       - name: 📤 Commit & Push Hasil Scrape Observasi Terbaru
