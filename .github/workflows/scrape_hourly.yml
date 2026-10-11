@@ -47,8 +47,8 @@ jobs:
           git fetch origin main
           git checkout main
 
-          # 2. Masukkan file observasi yang berubah ke antrean staging area
-          git add HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv
+          # 2. Masukkan KEDUA file observasi (Jam-jaman & 15-Menitan) ke staging area
+          git add HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv HASIL_SCRAPING_15_MENITAN_DSDA.csv
 
           # 3. Cek apakah benar-benar ada data baru yang masuk
           if ! git diff --cached --quiet; then
