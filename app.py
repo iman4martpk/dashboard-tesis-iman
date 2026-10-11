@@ -8,7 +8,6 @@ prediksi pasang surut air laut dengan data observasi independen secara REAL-TIME
 from __future__ import annotations
 
 import re
-import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
@@ -18,12 +17,6 @@ import pandas as pd
 import plotly.graph_objects as go
 import pytz
 import streamlit as st
-
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
 
 # =========================================================================
 # 1. KONSTANTA & KONFIGURASI GLOBAL
@@ -122,63 +115,38 @@ DEFAULT_PRESET_INDEX = 0
 
 
 # =========================================================================
-# 2. FUNGSI SCRAPING REAL-TIME POSKO BANJIR DSDA
+# 2. FUNGSI READ REAL-TIME POSKO BANJIR DSDA (DARI CSV OBSERVASI)
 # =========================================================================
-URL_DSDA = "https://poskobanjir.dsdadki.web.id/"
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=60)
 def fetch_realtime_data() -> Optional[dict]:
-    """Mengambil data real-time TMA Pasar Ikan dari web Posko Banjir DSDA DKI."""
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    """
+    Membaca data observasi TMA Pasar Ikan (Posko Banjir DSDA) terbaru 
+    langsung dari CSV lokal (HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv).
     
-    driver = None
-    nilai_cm = None
-    
+    Aplikasi Streamlit terbuka instan tanpa live scrape yang lambat/crash.
+    """
     try:
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        driver.get(URL_DSDA)
-        time.sleep(12) 
-
-        # Skenario 1: Deep scan baris tabel Pasar Ikan
-        all_elements = driver.find_elements(By.XPATH, "//*[contains(text(), 'Pasar Ikan')]/ancestor::tr")
-        for row in all_elements:
-            row_text = row.get_attribute("innerText")
-            nums = re.findall(r"(\d{3})", row_text)
-            for n in nums:
-                val_n = int(n)
-                if 120 <= val_n <= 350: 
-                    nilai_cm = float(val_n)
-                    break
-            if nilai_cm: break
-
-        # Skenario 2: Deep scan snippet text body jika Skenario 1 gagal
-        if not nilai_cm:
-            all_text = driver.find_element(By.TAG_NAME, "body").get_attribute("innerText")
-            pos = all_text.find("Pasar Ikan")
-            if pos != -1:
-                snippet = all_text[pos:pos+200]
-                nums = re.findall(r"(\d{3})", snippet)
-                for n in nums:
-                    val_n = int(n)
-                    if 120 <= val_n <= 350:
-                        nilai_cm = float(val_n)
-                        break
-
+        df = pd.read_csv(DATA_FILE_OBSERVASI)
+        if df.empty:
+            return None
+            
+        df[COL_DATETIME] = pd.to_datetime(df[COL_DATETIME], format="mixed", errors="coerce")
+        df_valid = df.dropna(subset=[COL_DATETIME, COL_OBSERVASI]).sort_values(COL_DATETIME)
+        
+        if df_valid.empty:
+            return None
+            
+        latest_row = df_valid.iloc[-1]
+        waktu_terakhir = latest_row[COL_DATETIME]
+        tma_terakhir = latest_row[COL_OBSERVASI]
+        
+        return {
+            "jam": waktu_terakhir.strftime("%H:%M"),
+            "tma": float(tma_terakhir)
+        }
     except Exception:
         return None
-    finally:
-        if driver: 
-            driver.quit()
-            
-    if nilai_cm is not None:
-        jam_str = get_now_jkt().strftime("%H:%M")
-        return {"jam": jam_str, "tma": nilai_cm}
-        
-    return None
 
 
 # =========================================================================
