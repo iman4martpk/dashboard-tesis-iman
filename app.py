@@ -71,7 +71,7 @@ PRESETS = {
     "📊 Ringkasan Real-Time (Jendela 4 Hari)": {
         "start": START_REALTIME,
         "end": END_REALTIME,
-        "desc": "Kondisi operasional berjalan (2 hari lalu s.d 2 hari ke depan).",
+        "desc": "2 hari lalu s.d 2 hari ke depan.",
     },
     "Studi Kasus 1: Periode Desember 2025": {
         "start": "2025-12-02 00:00:00",
