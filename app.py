@@ -320,7 +320,7 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict],
                     mode="lines+markers", 
                     name="Live Scrape DSDA (Per 15 Menit)", 
                     marker=dict(size=4, color=COLOR_PALETTE["live_15m"]),
-                    line=dict(color=COLOR_PALETTE["live_15m"], width=2.0, dash="dot", shape="spline"), 
+                    line=dict(color=COLOR_PALETTE["live_15m"], width=2.0, dash="solid", shape="spline"), 
                     connectgaps=False
                 ))
 
