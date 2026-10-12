@@ -58,20 +58,20 @@ COLOR_PALETTE = {
 }
 
 ALERT_ZONES = [
-    (0, 230, COLOR_PALETTE["aman"], "KONDISI AMAN", 0.25),
-    (230, 250, COLOR_PALETTE["waspada"], "WASPADA ROB", 0.32),
+    (171, 200, COLOR_PALETTE["aman"], "KONDISI AMAN", 0.25),
+    (201, 249, COLOR_PALETTE["waspada"], "WASPADA ROB", 0.32),
     (250, 500, COLOR_PALETTE["awas"], "AWAS ROB", 0.25), 
 ]
 
 HARI_INI = get_now_jkt()
-START_REALTIME = (HARI_INI - timedelta(days=3)).strftime("%Y-%m-%d 00:00:00")
-END_REALTIME = (HARI_INI + timedelta(days=4)).strftime("%Y-%m-%d 23:00:00")
+START_REALTIME = (HARI_INI - timedelta(days=2)).strftime("%Y-%m-%d 00:00:00")
+END_REALTIME = (HARI_INI + timedelta(days=3)).strftime("%Y-%m-%d 23:00:00")
 
 PRESETS = {
-    "📊 Ringkasan Real-Time (Jendela 7 Hari)": {
+    "📊 Ringkasan Real-Time (Jendela 5 Hari)": {
         "start": START_REALTIME,
         "end": END_REALTIME,
-        "desc": "Jendela pengamatan H-3 s.d. H+4.",
+        "desc": "Jendela tampilan H-2 s.d. H+3.",
     },
     "Studi Kasus 1: Periode Desember 2025": {
         "start": "2025-12-02 00:00:00",
