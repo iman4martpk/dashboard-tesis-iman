@@ -51,7 +51,7 @@ COLOR_PALETTE = {
     "utide": "rgba(0, 194, 255, 0.45)",     
     "lstm": "rgba(16, 185, 129, 0.45)",     
     "hibrida": "rgba(37, 99, 235, 0.65)",   
-    "live_15m": "#E11D48", # Merah muda menyala untuk 15-min
+    "live_15m": "rgba(225, 29, 72, 0.6)",
     "aman": "#BAE6FD",     
     "waspada": "#EA580C",  
     "awas": "#FF0000",     
