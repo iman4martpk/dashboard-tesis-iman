@@ -156,7 +156,7 @@ def inject_custom_css() -> None:
         
         /* Animasi Berkedip (Blinking) untuk Indikator Live */
         @keyframes pulse-dot {{
-            0% {{ opacity: 1; transform: scale(1); }}
+            0% {{ opacity: 1; transform: scale(0.9); }}
             50% {{ opacity: 0.3; transform: scale(0.85); }}
             100% {{ opacity: 1; transform: scale(1); }}
         }}
