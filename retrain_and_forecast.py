@@ -1,255 +1,554 @@
 #!/usr/bin/env python3
 """
-Pipeline Tesis Otomatis: Auto-Retraining (Fine-Tuning) & Multi-Step Forecasting
-Arsitektur: Seq2Seq LSTM (Encoder-Decoder) 3D Tensor Compatible
-Desain Sistem: 3-File Architecture (Single Source of Truth)
-Status: Environment 100% Synced with Local Machine
+Pipeline mingguan: fine-tuning terkontrol dan peramalan 7 hari untuk model
+LSTM Murni dan Hibrida (UTide + Seq2Seq LSTM residu), stasiun Pasar Ikan.
 
-Catatan perubahan penting:
-1. [FIX MERGE CRASH] Parsing kolom Datetime tidak lagi memakai
-   pd.read_csv(..., parse_dates=[...]) yang gagal diam-diam saat format
-   tanggal di CSV bercampur (mis. legacy "%m/%d/%Y %H:%M" vs baris baru
-   dari scraper "%Y-%m-%d %H:%M:%S") -> kolom tertinggal jadi string ->
-   pd.merge meledak ("datetime64 and str columns"). Sekarang semua kolom
-   Datetime diparse eksplisit lewat _parse_datetime_column() yang tahan
-   format campuran (format="mixed", errors="coerce") dan konsisten
-   menghasilkan datetime64 murni tanpa timezone di ketiga file.
-2. [FIX CAKUPAN FORECAST] Forecasting HANYA menghasilkan & menimpa TEPAT
-   1 window N_OUTPUT (168 jam / 7 hari) setelah observasi terakhir. Baris
-   di luar window itu (hari ke-8 dan seterusnya) TIDAK disentuh sama
-   sekali, apapun isinya. Sebelumnya rolling multi-block forecasting
-   menimpa seluruh sisa grid (bisa berbulan-bulan ke depan) dan errornya
-   menumpuk (forecast drift) karena tiap blok memakai prediksi blok
-   sebelumnya sebagai "observasi palsu".
+Arsitektur tiga berkas (observasi adalah satu-satunya sumber data aktual):
+    HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv   dibaca saja, tidak pernah ditulis
+    HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv  diperbarui pada jendela 7 hari
+    HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv     diperbarui pada jendela 7 hari
+
+Alur tiap eksekusi:
+    1. Baca ketiga berkas, rapikan datetime dan deret observasi per jam.
+    2. Verifikasi ramalan lama terhadap observasi baru, simpan ke log.
+    3. Fine-tuning dengan holdout kronologis. Model baru dipakai hanya jika
+       galat holdout-nya tidak lebih buruk daripada model sebelumnya.
+    4. Ramal tepat N_OUTPUT jam setelah observasi terakhir. Baris di luar
+       jendela itu tidak disentuh.
+
+Catatan perubahan terhadap versi sebelumnya:
+    - Deret observasi dibentuk ulang menjadi grid per jam. Versi lama membuang
+      baris NaN lalu mengambil 336 baris terakhir, sehingga lookback bisa
+      melompati gap waktu dan tidak sejajar dengan jam sebenarnya.
+    - Window training hanya dari rentang kontinu tanpa NaN (sama dengan notebook).
+    - Fine-tuning memakai validasi holdout dan learning rate kecil. Versi lama
+      memantau training loss tanpa validasi dan selalu menimpa model master.
+    - Lookback yang berlubang diisi dengan interpolasi gap pendek, lalu memori
+      prediksi sebelumnya (perilaku yang sama dengan notebook rolling forecast).
+    - Penempatan hasil ramalan berdasarkan timestamp, bukan irisan [:n].
+    - Kolom Mode, Lead_Jam, Residu_Murni, dan Baseline ikut diperbarui.
+    - Kegagalan satu blok tidak lagi tertelan: exit code 1 dan berkas tetap utuh.
+    - Penulisan CSV dan model bersifat atomik, model sebelumnya dicadangkan.
 """
 
+import argparse
+import logging
 import os
+import shutil
 import sys
-from datetime import timedelta
+import time
+from pathlib import Path
 
-import joblib
-import numpy as np
-import pandas as pd
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 
-# Mengunci Seed agar bobot stochastic gradient descent konsisten
-SEED = 42
-np.random.seed(SEED)
-
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Mematikan warning log bawaan TF yang mengotori konsol
+import joblib  # noqa: E402
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
 import tensorflow as tf  # noqa: E402
+from numpy.lib.stride_tricks import sliding_window_view  # noqa: E402
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score  # noqa: E402
+from tensorflow.keras.callbacks import Callback, EarlyStopping, ReduceLROnPlateau  # noqa: E402
+from tensorflow.keras.optimizers import Adam  # noqa: E402
 
-tf.random.set_seed(SEED)
-from tensorflow.keras.callbacks import EarlyStopping  # noqa: E402
+# ---------------------------------------------------------------------------
+# Konfigurasi
+# ---------------------------------------------------------------------------
+SEED = 42
 
-# =========================================================================
-# ⚙️ KONFIGURASI PATH ASET & PARAMETER DIMENSI SEQ2SEQ
-# =========================================================================
-DATA_FILE_HIBRIDA = "HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv"
-DATA_FILE_LSTM = "HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv"
-DATA_FILE_OBSERVASI = "HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv"
+FILE_HIBRIDA = "HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv"
+FILE_LSTM = "HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv"
+FILE_OBSERVASI = "HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv"
+FILE_LOG_VERIFIKASI = "LOG_VERIFIKASI_MINGGUAN.csv"
 
-MODEL_LSTM_MURNI = "model_pasar_ikan_lstm_murni_master.keras"
+MODEL_LSTM = "model_pasar_ikan_lstm_murni_master.keras"
 MODEL_HIBRIDA = "model_pasar_ikan_master.keras"
-SCALER_LSTM_MURNI = "scaler_tma_pasar_ikan_lstm_murni.save"
-SCALER_RESIDU_HIBRIDA = "scaler_residu_pasar_ikan.save"
+SCALER_LSTM = "scaler_tma_pasar_ikan_lstm_murni.save"
+SCALER_HIBRIDA = "scaler_residu_pasar_ikan.save"
 
-N_INPUT = 336   # Jendela ke belakang: 14 hari x 24 jam
-N_OUTPUT = 168  # Jendela ramalan blok: 7 hari x 24 jam (BATAS overwrite forecast)
+COL_DATETIME = "Datetime"
+COL_TMA = "TMA_Pasar_Ikan"
+COL_UTIDE = "Prediksi_Harmonik_UTIDE"
+COL_PRED_LSTM = "Prediksi_LSTM_Murni"
+COL_PRED_HIB = "Prediksi_Hibrida_Final"
+COL_RESIDU_PRED = "Residu_LSTM_Pred"
+COL_RESIDU_OBS = "Residu_Murni"
+COL_BASELINE = "Baseline_Naive_168h"
+
+TRAIN_END = pd.Timestamp("2025-11-30 23:00:00")  # sama dengan notebook training
+N_INPUT = 336            # lookback 14 hari
+N_OUTPUT = 168           # horizon dan batas overwrite: 7 hari
+MAX_GAP_INTERP = 3       # gap observasi <= 3 jam diinterpolasi
+
+# Fine-tuning
+FINETUNE_LR = 1e-5       # model master berhenti di LR 1e-6; 1e-5 cukup untuk adaptasi tanpa merusak bobot
 MAX_EPOCHS = 10
+PATIENCE = 3
 BATCH_SIZE = 128
+HOLDOUT_HARI = 28        # periode terakhir yang tidak ikut training, dipakai sebagai gerbang
+TOLERANSI_VAL = 0.0      # model baru diterima bila val_mse <= val_mse_lama * (1 + toleransi)
+STRIDE_LATIH = 1         # naikkan (2-6) bila runner terlalu lambat
+MIN_WINDOW_LATIH = 1000
 
-print("=" * 80)
-print("🚀 LAUNCHING PIPELINE: AUTOMATED SEQ2SEQ RETRAIN & FORECAST SYSTEM (SYNCED)")
-print("=" * 80)
+LABEL_MODE_LSTM = ("observasi", "campuran", "blind")
+LABEL_MODE_HIBRIDA = ("Observasi", "Hibrid", "Rekursif")
+
+logger = logging.getLogger("pipeline_mingguan")
 
 
-# =========================================================================
-# 🛠️ UTIL: PARSING DATETIME YANG TAHAN FORMAT CAMPURAN
-# =========================================================================
-def parse_datetime_column(series: pd.Series, label: str) -> pd.Series:
+# ---------------------------------------------------------------------------
+# Utilitas berkas
+# ---------------------------------------------------------------------------
+def parse_datetime_column(series, label):
     """
-    Parsing kolom Datetime yang tahan terhadap format campuran (mis. baris
-    lama "%m/%d/%Y %H:%M" bercampur dengan baris baru ISO
-    "%Y-%m-%d %H:%M:%S"). Baris yang gagal diparse dijadikan NaT (bukan
-    meng-crash-kan pipeline) dan dilaporkan lewat konsol.
+    Parse kolom Datetime yang tahan format campuran (mis. "%m/%d/%Y %H:%M"
+    bercampur "%Y-%m-%d %H:%M:%S"). Baris tidak valid menjadi NaT dan dilaporkan.
     """
     parsed = pd.to_datetime(series, format="mixed", dayfirst=False, errors="coerce")
     n_invalid = int(parsed.isna().sum())
     if n_invalid:
-        print(f"⚠️ [{label}] {n_invalid} baris punya format Datetime tidak valid, diabaikan.")
+        logger.warning("[%s] %d baris punya format Datetime tidak valid, dibuang.", label, n_invalid)
     if parsed.dt.tz is not None:
         parsed = parsed.dt.tz_localize(None)
     return parsed
 
 
-# =========================================================================
-# 📊 DATA PIPELINE (INGESTION & SINKRONISASI)
-# =========================================================================
-for file_path in [DATA_FILE_HIBRIDA, DATA_FILE_LSTM, DATA_FILE_OBSERVASI]:
-    if not os.path.exists(file_path):
-        print(f"❌ Critical Error: File master '{file_path}' tidak ditemukan!")
+def baca_csv(path, label):
+    if not path.exists():
+        raise FileNotFoundError(f"Berkas master tidak ditemukan: {path}")
+    df = pd.read_csv(path)
+    if COL_DATETIME not in df.columns:
+        raise ValueError(f"[{label}] kolom '{COL_DATETIME}' tidak ada.")
+    df[COL_DATETIME] = parse_datetime_column(df[COL_DATETIME], label)
+    df = df.dropna(subset=[COL_DATETIME]).sort_values(COL_DATETIME)
+
+    n_dup = int(df[COL_DATETIME].duplicated().sum())
+    if n_dup:
+        logger.warning("[%s] %d timestamp duplikat, nilai terakhir dipertahankan.", label, n_dup)
+        df = df.drop_duplicates(COL_DATETIME, keep="last")
+    return df.reset_index(drop=True)
+
+
+def tulis_csv_atomik(df, path):
+    tmp = path.with_name(path.name + ".tmp")
+    df.to_csv(tmp, index=False)
+    os.replace(tmp, path)
+
+
+def simpan_model_atomik(model, path):
+    tmp = path.with_name(path.stem + ".tmp.keras")
+    model.save(str(tmp))
+    if path.exists():
+        shutil.copy2(path, path.with_name(path.stem + ".prev.keras"))
+    os.replace(tmp, path)
+
+
+# ---------------------------------------------------------------------------
+# Deret waktu
+# ---------------------------------------------------------------------------
+def fill_short_gaps(series, max_gap):
+    """Interpolasi linear hanya untuk gap berurutan sepanjang <= max_gap."""
+    is_na = series.isna()
+    run_len = is_na.groupby((~is_na).cumsum()).transform("sum")
+    interp = series.interpolate(method="linear", limit_area="inside")
+    out = series.copy()
+    mask = is_na & (run_len <= max_gap)
+    out[mask] = interp[mask]
+    return out
+
+
+def bangun_seri_obs(df_obs):
+    """Deret observasi per jam dari observasi pertama sampai observasi terakhir."""
+    if COL_TMA not in df_obs.columns:
+        raise ValueError(f"Kolom '{COL_TMA}' tidak ada di berkas observasi.")
+    s = df_obs[[COL_DATETIME, COL_TMA]].copy()
+    s[COL_TMA] = pd.to_numeric(s[COL_TMA], errors="coerce")
+    s = s.dropna()
+
+    bukan_jam = (s[COL_DATETIME].dt.minute != 0) | (s[COL_DATETIME].dt.second != 0)
+    if bukan_jam.any():
+        logger.warning("%d observasi tidak tepat pada jam penuh, diabaikan.", int(bukan_jam.sum()))
+        s = s[~bukan_jam]
+    if s.empty:
+        raise ValueError("Tidak ada observasi valid.")
+
+    s = s.set_index(COL_DATETIME)[COL_TMA]
+    idx = pd.date_range(s.index.min(), s.index.max(), freq="h")
+    return s.reindex(idx)
+
+
+def seri_dari_df(df, kolom, idx):
+    """Ambil kolom df sebagai deret per jam yang sejajar dengan idx (NaN bila tidak ada)."""
+    if kolom not in df.columns:
+        return pd.Series(np.nan, index=idx)
+    return df.set_index(COL_DATETIME)[kolom].reindex(idx)
+
+
+def posisi_jendela(df, t_last):
+    """
+    Baris df yang masuk jendela (t_last, t_last + N_OUTPUT jam], berdasarkan
+    timestamp. Mengembalikan mask baris dan indeks lead (0..N_OUTPUT-1) tiap baris.
+    """
+    lead = (df[COL_DATETIME] - t_last) / pd.Timedelta(hours=1)
+    mask = (lead >= 1) & (lead <= N_OUTPUT) & (lead == np.floor(lead))
+    return mask.to_numpy(), lead[mask].astype(int).to_numpy() - 1
+
+
+# ---------------------------------------------------------------------------
+# Fine-tuning
+# ---------------------------------------------------------------------------
+class SimpanBobotTerbaik(Callback):
+    """Menyimpan bobot di epoch dengan val_loss terendah (tidak bergantung versi Keras)."""
+
+    def __init__(self):
+        super().__init__()
+        self.best = np.inf
+        self.best_epoch = 0
+        self.best_weights = None
+
+    def on_epoch_end(self, epoch, logs=None):
+        nilai = (logs or {}).get("val_loss")
+        if nilai is not None and nilai < self.best:
+            self.best = float(nilai)
+            self.best_epoch = epoch + 1
+            self.best_weights = self.model.get_weights()
+
+
+def latih_ulang(model, scaler, seri_skala, path_model, label):
+    """
+    Fine-tuning dengan holdout kronologis pada HOLDOUT_HARI terakhir.
+
+    Window train dan holdout tidak overlap. Model hasil fine-tuning disimpan
+    hanya bila val MSE-nya tidak lebih buruk daripada model sebelum fine-tuning
+    pada holdout yang sama; selain itu bobot lama dipulihkan.
+    """
+    span = N_INPUT + N_OUTPUT
+    n = len(seri_skala)
+    windows = sliding_window_view(seri_skala, span)
+    valid = np.flatnonzero(~np.isnan(windows).any(axis=1))
+
+    val_start = n - HOLDOUT_HARI * 24
+    train_starts = valid[valid + span <= val_start][::STRIDE_LATIH]
+    val_starts = valid[valid >= val_start]
+    if len(train_starts) < MIN_WINDOW_LATIH or len(val_starts) == 0:
+        logger.warning("[%s] Window tidak cukup (latih %d, holdout %d). Fine-tuning dilewati.",
+                       label, len(train_starts), len(val_starts))
+        return model
+
+    w_tr, w_va = windows[train_starts], windows[val_starts]
+    X_tr, y_tr = w_tr[:, :N_INPUT, None], w_tr[:, N_INPUT:, None]
+    X_va, y_va = w_va[:, :N_INPUT, None], w_va[:, N_INPUT:, None]
+    logger.info("[%s] Fine-tuning: %d window latih, %d window holdout (%d hari terakhir).",
+                label, len(X_tr), len(X_va), HOLDOUT_HARI)
+
+    rmse_per_mse = float(scaler.data_range_[0]) / 2  # MinMax (-1, 1): satuan asli = skala * range/2
+    bobot_lama = model.get_weights()
+    model.compile(optimizer=Adam(FINETUNE_LR), loss="mean_squared_error")
+    val_lama = float(model.evaluate(X_va, y_va, batch_size=256, verbose=0))
+
+    penyimpan = SimpanBobotTerbaik()
+    model.fit(
+        X_tr, y_tr,
+        validation_data=(X_va, y_va),
+        epochs=MAX_EPOCHS,
+        batch_size=BATCH_SIZE,
+        callbacks=[
+            EarlyStopping(monitor="val_loss", patience=PATIENCE, restore_best_weights=False),
+            ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=2, min_lr=1e-6),
+            penyimpan,
+        ],
+        verbose=2,
+    )
+
+    val_baru = penyimpan.best
+    logger.info("[%s] Holdout RMSE: sebelum %.4f | sesudah %.4f (epoch terbaik %d)",
+                label, np.sqrt(val_lama) * rmse_per_mse, np.sqrt(val_baru) * rmse_per_mse,
+                penyimpan.best_epoch)
+
+    if penyimpan.best_weights is not None and val_baru <= val_lama * (1 + TOLERANSI_VAL):
+        model.set_weights(penyimpan.best_weights)
+        simpan_model_atomik(model, path_model)
+        logger.info("[%s] Model hasil fine-tuning diterima dan disimpan (cadangan: .prev.keras).", label)
+    else:
+        model.set_weights(bobot_lama)
+        logger.warning("[%s] Model hasil fine-tuning DITOLAK (holdout lebih buruk). "
+                       "Model master tidak diubah.", label)
+    return model
+
+
+# ---------------------------------------------------------------------------
+# Peramalan
+# ---------------------------------------------------------------------------
+def ramal_blok(model, scaler, seri_short, memori):
+    """
+    Ramal N_OUTPUT jam setelah indeks terakhir seri_short.
+
+    Lookback: observasi (gap pendek sudah diinterpolasi), lalu memori ramalan
+    sebelumnya untuk jam yang masih kosong. Bila tetap ada NaN, ramalan dibatalkan
+    karena memasukkan data karangan ke model lebih berbahaya daripada tidak meramal.
+    """
+    if len(seri_short) < N_INPUT:
+        raise ValueError(f"Deret hanya {len(seri_short)} jam, butuh minimal {N_INPUT}.")
+
+    window = seri_short.iloc[-N_INPUT:]
+    n_obs = int(window.notna().sum())
+    if memori is not None:
+        window = window.fillna(memori.reindex(window.index))
+    n_kosong = int(window.isna().sum())
+    if n_kosong:
+        raise ValueError(f"Lookback masih berisi {n_kosong} jam kosong yang tidak bisa diisi "
+                         f"(gap panjang tanpa memori ramalan).")
+
+    x = scaler.transform(window.to_numpy().reshape(-1, 1)).astype("float32").reshape(1, N_INPUT, 1)
+    keluaran = model(x, training=False).numpy()[0, :, 0]
+    return scaler.inverse_transform(keluaran.reshape(-1, 1)).ravel(), n_obs
+
+
+def label_mode(n_obs, label_set):
+    if n_obs == N_INPUT:
+        return label_set[0]
+    if n_obs == 0:
+        return label_set[2]
+    return label_set[1]
+
+
+def laporkan_di_luar_rentang(scaler, seri, label):
+    nilai = seri.dropna().tail(HOLDOUT_HARI * 24).to_numpy().reshape(-1, 1)
+    if len(nilai):
+        skala = scaler.transform(nilai)
+        persen = float(np.mean((skala < -1) | (skala > 1)) * 100)
+        if persen > 0:
+            logger.warning("[%s] %.2f%% data %d hari terakhir di luar rentang scaler.",
+                           label, persen, HOLDOUT_HARI)
+
+
+def blok_lstm_murni(base, df_lstm, seri_short, t_last, finetune):
+    scaler = joblib.load(base / SCALER_LSTM)
+    model = tf.keras.models.load_model(base / MODEL_LSTM)
+    laporkan_di_luar_rentang(scaler, seri_short, "LSTM Murni")
+
+    if finetune:
+        try:
+            skala = scaler.transform(seri_short.to_numpy().reshape(-1, 1)).ravel().astype("float32")
+            model = latih_ulang(model, scaler, skala, base / MODEL_LSTM, "LSTM Murni")
+        except Exception:
+            logger.exception("[LSTM Murni] Fine-tuning gagal, memakai model master apa adanya.")
+            model = tf.keras.models.load_model(base / MODEL_LSTM)
+
+    memori = seri_dari_df(df_lstm, COL_PRED_LSTM, seri_short.index)
+    pred, n_obs = ramal_blok(model, scaler, seri_short, memori)
+
+    mask, lead_idx = posisi_jendela(df_lstm, t_last)
+    if not mask.any():
+        logger.warning("[LSTM Murni] Tidak ada baris grid pada jendela ramalan.")
+        return
+    label = label_mode(n_obs, LABEL_MODE_LSTM)
+    df_lstm["Mode_Input"] = df_lstm.get("Mode_Input", pd.Series(index=df_lstm.index, dtype=object)).astype(object)
+    df_lstm.loc[mask, COL_PRED_LSTM] = pred[lead_idx]
+    df_lstm.loc[mask, "Mode_Input"] = label
+    df_lstm.loc[mask, "Lead_Jam"] = lead_idx + 1
+
+    if COL_BASELINE in df_lstm.columns:
+        alas = seri_short.reindex(df_lstm[COL_DATETIME] - pd.Timedelta(hours=N_OUTPUT)).to_numpy()
+        df_lstm[COL_BASELINE] = df_lstm[COL_BASELINE].fillna(pd.Series(alas, index=df_lstm.index))
+
+    logger.info("[LSTM Murni] %d baris diperbarui | mode input: %s (%d/%d jam observasi).",
+                int(mask.sum()), label, n_obs, N_INPUT)
+
+
+def blok_hibrida(base, df_hib, seri_obs, t_last, finetune):
+    idx = seri_obs.index
+    utide = seri_dari_df(df_hib, COL_UTIDE, idx)
+    residu = seri_obs - utide
+    if residu.dropna().empty:
+        raise ValueError("Residu tidak bisa dihitung: UTide tidak mencakup periode observasi.")
+    residu_short = fill_short_gaps(residu, MAX_GAP_INTERP)
+
+    scaler = joblib.load(base / SCALER_HIBRIDA)
+    model = tf.keras.models.load_model(base / MODEL_HIBRIDA)
+    laporkan_di_luar_rentang(scaler, residu_short, "Hibrida")
+
+    if finetune:
+        try:
+            skala = scaler.transform(residu_short.to_numpy().reshape(-1, 1)).ravel().astype("float32")
+            model = latih_ulang(model, scaler, skala, base / MODEL_HIBRIDA, "Hibrida")
+        except Exception:
+            logger.exception("[Hibrida] Fine-tuning gagal, memakai model master apa adanya.")
+            model = tf.keras.models.load_model(base / MODEL_HIBRIDA)
+
+    memori = seri_dari_df(df_hib, COL_RESIDU_PRED, idx)
+    pred_res, n_obs = ramal_blok(model, scaler, residu_short, memori)
+
+    # Residu_Murni untuk baris yang baru punya observasi (nilai lama tidak ditimpa)
+    r_obs = df_hib[COL_DATETIME].map(residu.dropna())
+    if COL_RESIDU_OBS in df_hib.columns:
+        df_hib[COL_RESIDU_OBS] = df_hib[COL_RESIDU_OBS].fillna(r_obs)
+    else:
+        df_hib[COL_RESIDU_OBS] = r_obs
+
+    mask, lead_idx = posisi_jendela(df_hib, t_last)
+    if not mask.any():
+        logger.warning("[Hibrida] Tidak ada baris grid pada jendela ramalan.")
+        return
+    utide_jendela = df_hib.loc[mask, COL_UTIDE].to_numpy(dtype="float64")
+    if np.isnan(utide_jendela).any():
+        logger.warning("[Hibrida] %d baris pada jendela tidak punya nilai UTide.",
+                       int(np.isnan(utide_jendela).sum()))
+
+    label = label_mode(n_obs, LABEL_MODE_HIBRIDA)
+    df_hib["Mode_Prediksi"] = df_hib.get("Mode_Prediksi", pd.Series(index=df_hib.index, dtype=object)).astype(object)
+    df_hib.loc[mask, COL_RESIDU_PRED] = pred_res[lead_idx]
+    df_hib.loc[mask, COL_PRED_HIB] = utide_jendela + pred_res[lead_idx]
+    df_hib.loc[mask, "Mode_Prediksi"] = label
+    df_hib.loc[mask, "Lead_Jam"] = lead_idx + 1
+
+    logger.info("[Hibrida] %d baris diperbarui | mode input: %s (%d/%d jam observasi).",
+                int(mask.sum()), label, n_obs, N_INPUT)
+
+
+# ---------------------------------------------------------------------------
+# Verifikasi ramalan lama terhadap observasi baru
+# ---------------------------------------------------------------------------
+def hitung_metrik(y_true, y_pred):
+    return {
+        "N_Jam": int(len(y_true)),
+        "RMSE": float(np.sqrt(mean_squared_error(y_true, y_pred))),
+        "MAE": float(mean_absolute_error(y_true, y_pred)),
+        "Bias": float(np.mean(y_pred - y_true)),
+        "R2": float(r2_score(y_true, y_pred)) if len(y_true) > 1 else np.nan,
+    }
+
+
+def verifikasi(seri_obs, seri_short, df_hib, df_lstm, t_last, path_log):
+    """
+    Bandingkan ramalan yang sudah tersimpan (dibuat sebelum observasi ini ada)
+    dengan observasi aktual setelah TRAIN_END. Sampel dibuat identik untuk semua
+    model agar perbandingannya adil. Hasil ditambahkan ke log mingguan.
+    """
+    idx = seri_obs.index
+    tabel = pd.DataFrame({
+        "Observasi": seri_obs,
+        "LSTM_Murni": seri_dari_df(df_lstm, COL_PRED_LSTM, idx),
+        "Hibrida": seri_dari_df(df_hib, COL_PRED_HIB, idx),
+        "Harmonik": seri_dari_df(df_hib, COL_UTIDE, idx),
+        "Naive_168h": seri_short.shift(N_OUTPUT),
+    })
+    tabel = tabel[tabel.index > TRAIN_END]
+    kolom_model = [c for c in tabel.columns[1:] if tabel[c].notna().any()]
+    tabel = tabel.dropna(subset=["Observasi"] + kolom_model)
+    if tabel.empty or not kolom_model:
+        logger.info("Verifikasi dilewati: belum ada ramalan yang beririsan dengan observasi.")
+        return
+
+    periode = {
+        "kumulatif": tabel,
+        "28_hari_terakhir": tabel[tabel.index > t_last - pd.Timedelta(days=28)],
+    }
+    waktu_run = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+    baris = []
+    for nama_p, sub in periode.items():
+        if sub.empty:
+            continue
+        hasil = {m: hitung_metrik(sub["Observasi"], sub[m]) for m in kolom_model}
+        for m, met in hasil.items():
+            baris.append({"Waktu_Run": waktu_run, "Obs_Terakhir": t_last, "Periode": nama_p,
+                          "Model": m, **met})
+        ringkas = " | ".join(f"{m} {met['RMSE']:.4f}" for m, met in hasil.items())
+        logger.info("Verifikasi %-17s (%d jam) RMSE: %s", nama_p, len(sub), ringkas)
+
+        if {"Hibrida", "Harmonik"} <= hasil.keys() and hasil["Hibrida"]["RMSE"] > hasil["Harmonik"]["RMSE"]:
+            logger.warning("Periode %s: hibrida tidak lebih baik daripada harmonik murni.", nama_p)
+        if {"LSTM_Murni", "Naive_168h"} <= hasil.keys() and hasil["LSTM_Murni"]["RMSE"] > hasil["Naive_168h"]["RMSE"]:
+            logger.warning("Periode %s: LSTM murni tidak lebih baik daripada baseline naive 168 jam.", nama_p)
+
+    baru = pd.DataFrame(baris)
+    if path_log.exists():
+        lama = pd.read_csv(path_log)
+        baru = pd.concat([lama, baru], ignore_index=True)
+        baru["Obs_Terakhir"] = baru["Obs_Terakhir"].astype(str)
+        baru = baru.drop_duplicates(["Obs_Terakhir", "Periode", "Model"], keep="last")
+    tulis_csv_atomik(baru, path_log)
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main():
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--base-dir", type=Path, default=Path("."),
+                        help="folder berisi seluruh berkas master (default: folder kerja)")
+    parser.add_argument("--tanpa-finetune", action="store_true",
+                        help="hanya meramal dengan model master, tanpa fine-tuning")
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-7s | %(message)s",
+                        datefmt="%H:%M:%S")
+    t_mulai = time.time()
+    base = args.base_dir
+    tf.keras.utils.set_random_seed(SEED)
+
+    # --- data ---
+    try:
+        df_hib = baca_csv(base / FILE_HIBRIDA, FILE_HIBRIDA)
+        df_lstm = baca_csv(base / FILE_LSTM, FILE_LSTM)
+        df_obs = baca_csv(base / FILE_OBSERVASI, FILE_OBSERVASI)
+    except (FileNotFoundError, ValueError) as err:
+        logger.error("%s", err)
         sys.exit(1)
 
-print("📋 Membaca basis data dari repositori...")
-# ⚠️ Sengaja TIDAK memakai parse_dates=["Datetime"] di sini karena rapuh
-# terhadap format tanggal campuran. Datetime diparse eksplisit di bawah.
-df_hib = pd.read_csv(DATA_FILE_HIBRIDA)
-df_lstm = pd.read_csv(DATA_FILE_LSTM)
-df_obs = pd.read_csv(DATA_FILE_OBSERVASI)
+    # observasi hanya boleh berasal dari berkas observasi
+    df_hib = df_hib.drop(columns=[COL_TMA], errors="ignore")
+    df_lstm = df_lstm.drop(columns=[COL_TMA], errors="ignore")
 
-df_hib["Datetime"] = parse_datetime_column(df_hib["Datetime"], DATA_FILE_HIBRIDA)
-df_lstm["Datetime"] = parse_datetime_column(df_lstm["Datetime"], DATA_FILE_LSTM)
-df_obs["Datetime"] = parse_datetime_column(df_obs["Datetime"], DATA_FILE_OBSERVASI)
+    seri_obs = bangun_seri_obs(df_obs)
+    t_last = seri_obs.index[-1]
+    if len(seri_obs) < N_INPUT:
+        logger.warning("Observasi hanya %d jam (butuh %d). Pipeline dilewati.", len(seri_obs), N_INPUT)
+        sys.exit(0)
+    seri_short = fill_short_gaps(seri_obs, MAX_GAP_INTERP)
 
-df_hib = df_hib.dropna(subset=["Datetime"]).reset_index(drop=True)
-df_lstm = df_lstm.dropna(subset=["Datetime"]).reset_index(drop=True)
-df_obs = df_obs.dropna(subset=["Datetime"]).reset_index(drop=True)
+    logger.info("Observasi: %d jam grid, %d jam kosong, terakhir %s",
+                len(seri_obs), int(seri_obs.isna().sum()), t_last)
+    logger.info("Jendela overwrite: %s < t <= %s (di luar jendela tidak diubah)",
+                t_last, t_last + pd.Timedelta(hours=N_OUTPUT))
 
-# Proteksi Overwrite: Bersihkan kolom observasi bawaan lama dari file model prediksi
-if "TMA_Pasar_Ikan" in df_hib.columns:
-    df_hib = df_hib.drop(columns=["TMA_Pasar_Ikan"])
-if "TMA_Pasar_Ikan" in df_lstm.columns:
-    df_lstm = df_lstm.drop(columns=["TMA_Pasar_Ikan"])
+    # --- verifikasi ramalan lama ---
+    try:
+        verifikasi(seri_obs, seri_short, df_hib, df_lstm, t_last, base / FILE_LOG_VERIFIKASI)
+    except Exception:
+        logger.exception("Verifikasi gagal (tidak menghentikan pipeline).")
 
-# Menjahit data observasi murni ke grid waktu menggunakan Left Join
-df_learning = pd.merge(df_hib, df_obs[["Datetime", "TMA_Pasar_Ikan"]], on="Datetime", how="left")
-df_valid = df_learning[df_learning["TMA_Pasar_Ikan"].notna()].sort_values("Datetime").reset_index(drop=True)
+    # --- blok model ---
+    finetune = not args.tanpa_finetune
+    gagal = []
 
-if len(df_valid) <= N_INPUT + N_OUTPUT:
-    print(f"⚠️ Data observasi murni ({len(df_valid)} jam) belum memenuhi syarat windowing ({N_INPUT + N_OUTPUT} jam).")
-    print("⏭️ Melewati fase retraining operasional minggu ini.")
-    sys.exit(0)
+    logger.info("-" * 60)
+    try:
+        blok_lstm_murni(base, df_lstm, seri_short, t_last, finetune)
+    except Exception:
+        logger.exception("[LSTM Murni] Blok gagal.")
+        gagal.append("LSTM Murni")
 
-waktu_terakhir_obs = df_valid["Datetime"].iloc[-1]
-horizon_cutoff = waktu_terakhir_obs + timedelta(hours=N_OUTPUT)
-print(f"📌 Batas Data Observasi Lapangan Aktual: {waktu_terakhir_obs}")
-print(f"🎯 Jendela overwrite forecast (TERBATAS): {waktu_terakhir_obs} < t <= {horizon_cutoff}")
-print("   (baris di luar jendela ini tidak akan diubah oleh pipeline ini)")
+    logger.info("-" * 60)
+    try:
+        blok_hibrida(base, df_hib, seri_obs, t_last, finetune)
+    except Exception:
+        logger.exception("[Hibrida] Blok gagal.")
+        gagal.append("Hibrida")
+
+    # --- simpan ---
+    for df, nama in ((df_hib, FILE_HIBRIDA), (df_lstm, FILE_LSTM)):
+        keluar = df.copy()
+        keluar[COL_DATETIME] = keluar[COL_DATETIME].dt.strftime("%Y-%m-%d %H:%M:%S")
+        tulis_csv_atomik(keluar, base / nama)
+
+    logger.info("=" * 60)
+    if gagal:
+        logger.error("Selesai dengan kegagalan pada: %s", ", ".join(gagal))
+        sys.exit(1)
+    logger.info("Selesai dalam %.1f menit. Ramalan 7 hari setelah %s diperbarui.",
+                (time.time() - t_mulai) / 60, t_last)
 
 
-def prepare_3d_sequences(dataset: np.ndarray, look_back: int, horizon: int) -> tuple[np.ndarray, np.ndarray]:
-    """Mengubah array 1D menjadi pasangan tensor 3D untuk arsitektur Encoder-Decoder."""
-    X, Y = [], []
-    for i in range(len(dataset) - look_back - horizon + 1):
-        X.append(dataset[i:(i + look_back), 0])
-        Y.append(dataset[(i + look_back):(i + look_back + horizon), 0])
-    return np.array(X), np.array(Y)
-
-
-# =========================================================================
-# 🧠 BLOK A: FINE-TUNING & FORECASTING MODEL LSTM MURNI (DIRECT TMA)
-# =========================================================================
-print("\n" + "-" * 50)
-print("🧠 [BLOK A] PROSES MODEL LSTM MURNI (PREDIKSI LANGSUNG TMA)")
-print("-" * 50)
-try:
-    scaler_tma = joblib.load(SCALER_LSTM_MURNI)
-    model_tma = tf.keras.models.load_model(MODEL_LSTM_MURNI)
-
-    scaled_tma = scaler_tma.transform(df_valid[["TMA_Pasar_Ikan"]].values.reshape(-1, 1))
-    X_lstm, y_lstm = prepare_3d_sequences(scaled_tma, N_INPUT, N_OUTPUT)
-    X_lstm = np.reshape(X_lstm, (X_lstm.shape[0], X_lstm.shape[1], 1))
-    y_lstm = np.reshape(y_lstm, (y_lstm.shape[0], y_lstm.shape[1], 1))
-
-    autostop_tma = EarlyStopping(monitor="loss", patience=2, restore_best_weights=True, verbose=1)
-
-    print(f"🏋️ Melatih ulang model via Fine-Tuning (Max: {MAX_EPOCHS} Epoch)...")
-    model_tma.fit(X_lstm, y_lstm, epochs=MAX_EPOCHS, batch_size=BATCH_SIZE, callbacks=[autostop_tma], verbose=1)
-    model_tma.save(MODEL_LSTM_MURNI)
-    print("💾 Otak Model LSTM Murni sukses diamankan.")
-
-    # --- Forecast TERBATAS: tepat 1 window N_OUTPUT jam setelah observasi terakhir ---
-    target_mask_lstm = (df_lstm["Datetime"] > waktu_terakhir_obs) & (df_lstm["Datetime"] <= horizon_cutoff)
-    n_target_lstm = int(target_mask_lstm.sum())
-
-    if n_target_lstm == 0:
-        print("⏭️ Tidak ada baris di dalam jendela 7 hari ke depan pada grid. Blok A dilewati.")
-    else:
-        print(f"🔮 Menghitung peramalan Seq2Seq untuk {n_target_lstm} jam ke depan (maks. {N_OUTPUT} jam)...")
-
-        input_data = np.array(scaled_tma[-N_INPUT:].flatten()).reshape(1, N_INPUT, 1)
-        pred_block_scaled = model_tma.predict(input_data, verbose=0)[0, :, 0]
-        pred_block_cm = scaler_tma.inverse_transform(pred_block_scaled.reshape(-1, 1)).flatten()
-
-        # Potong persis sejumlah baris yang benar-benar tersedia dalam jendela 7 hari
-        pred_block_cm = pred_block_cm[:n_target_lstm]
-
-        df_lstm.loc[target_mask_lstm, "Prediksi_LSTM_Murni"] = pred_block_cm
-        print(f"✅ Prediksi_LSTM_Murni diperbarui HANYA untuk {n_target_lstm} baris dalam jendela 7 hari.")
-        print("   Baris setelah jendela ini (hari ke-8 dst.) tidak diubah.")
-
-except Exception as err:
-    print(f"❌ Error Terjadi pada Blok A: {err}")
-
-# =========================================================================
-# 🧠 BLOK B: FINE-TUNING & FORECASTING MODEL HIBRIDA (ERROR RESIDUAL)
-# =========================================================================
-print("\n" + "-" * 50)
-print("🧠 [BLOK B] PROSES MODEL HIBRIDA (PREDIKSI RESIDU ERROR)")
-print("-" * 50)
-try:
-    scaler_residu = joblib.load(SCALER_RESIDU_HIBRIDA)
-    model_hib = tf.keras.models.load_model(MODEL_HIBRIDA)
-
-    residu_historis = df_valid["TMA_Pasar_Ikan"].values - df_valid["Prediksi_Harmonik_UTIDE"].values
-    scaled_residu = scaler_residu.transform(residu_historis.reshape(-1, 1))
-
-    X_res, y_res = prepare_3d_sequences(scaled_residu, N_INPUT, N_OUTPUT)
-    X_res = np.reshape(X_res, (X_res.shape[0], X_res.shape[1], 1))
-    y_res = np.reshape(y_res, (y_res.shape[0], y_res.shape[1], 1))
-
-    autostop_hib = EarlyStopping(monitor="loss", patience=2, restore_best_weights=True, verbose=1)
-
-    print(f"🏋️ Melatih ulang model via Fine-Tuning (Max: {MAX_EPOCHS} Epoch)...")
-    model_hib.fit(X_res, y_res, epochs=MAX_EPOCHS, batch_size=BATCH_SIZE, callbacks=[autostop_hib], verbose=1)
-    model_hib.save(MODEL_HIBRIDA)
-    print("💾 Otak Model Residu Hibrida Master sukses diamankan.")
-
-    # --- Forecast TERBATAS: tepat 1 window N_OUTPUT jam setelah observasi terakhir ---
-    target_mask_hib = (df_hib["Datetime"] > waktu_terakhir_obs) & (df_hib["Datetime"] <= horizon_cutoff)
-    n_target_hib = int(target_mask_hib.sum())
-
-    if n_target_hib == 0:
-        print("⏭️ Tidak ada baris di dalam jendela 7 hari ke depan pada grid. Blok B dilewati.")
-    else:
-        print(f"🔮 Menghitung peramalan residu Seq2Seq untuk {n_target_hib} jam ke depan (maks. {N_OUTPUT} jam)...")
-
-        input_data_res = np.array(scaled_residu[-N_INPUT:].flatten()).reshape(1, N_INPUT, 1)
-        pred_block_res_scaled = model_hib.predict(input_data_res, verbose=0)[0, :, 0]
-        pred_block_res_cm = scaler_residu.inverse_transform(pred_block_res_scaled.reshape(-1, 1)).flatten()
-
-        # Potong persis sejumlah baris yang benar-benar tersedia dalam jendela 7 hari
-        pred_block_res_cm = pred_block_res_cm[:n_target_hib]
-
-        utide_dalam_jendela = df_hib.loc[target_mask_hib, "Prediksi_Harmonik_UTIDE"].values
-        prediksi_hibrida_final = utide_dalam_jendela + pred_block_res_cm
-
-        df_hib.loc[target_mask_hib, "Residu_LSTM_Pred"] = pred_block_res_cm
-        df_hib.loc[target_mask_hib, "Prediksi_Hibrida_Final"] = prediksi_hibrida_final
-        print(f"✅ Prediksi_Hibrida_Final diperbarui HANYA untuk {n_target_hib} baris dalam jendela 7 hari.")
-        print("   Baris setelah jendela ini (hari ke-8 dst.) tidak diubah.")
-
-except Exception as err:
-    print(f"❌ Error Terjadi pada Blok B: {err}")
-
-# =========================================================================
-# 💾 DATABASE SYNCHRONIZATION & STORAGE MANAGEMENT
-# =========================================================================
-print("\n" + "=" * 80)
-print("💾 PROSES SINKRONISASI BASIS DATA NUMERIK...")
-print("=" * 80)
-
-df_hib["Datetime"] = df_hib["Datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
-df_lstm["Datetime"] = df_lstm["Datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
-
-if "TMA_Pasar_Ikan" in df_hib.columns:
-    df_hib = df_hib.drop(columns=["TMA_Pasar_Ikan"])
-if "TMA_Pasar_Ikan" in df_lstm.columns:
-    df_lstm = df_lstm.drop(columns=["TMA_Pasar_Ikan"])
-
-df_hib.to_csv(DATA_FILE_HIBRIDA, index=False)
-df_lstm.to_csv(DATA_FILE_LSTM, index=False)
-
-print("🎉 [SUCCESS] ALL PIPELINES ARE COMPLETELY SYNCHRONIZED 100% WITH AUTOSTOP!")
-print("   Cakupan overwrite forecast: HANYA 7 hari (168 jam) setelah observasi terakhir.")
-print("=" * 80)
+if __name__ == "__main__":
+    main()
