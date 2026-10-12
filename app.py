@@ -58,7 +58,7 @@ COLOR_PALETTE = {
 }
 
 ALERT_ZONES = [
-    (171, 200, COLOR_PALETTE["aman"], "KONDISI AMAN", 0.25),
+    (0, 200, COLOR_PALETTE["aman"], "KONDISI AMAN", 0.25),
     (201, 249, COLOR_PALETTE["waspada"], "WASPADA ROB", 0.32),
     (250, 500, COLOR_PALETTE["awas"], "AWAS ROB", 0.25), 
 ]
