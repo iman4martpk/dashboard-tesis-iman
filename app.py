@@ -284,7 +284,7 @@ header[data-testid="stHeader"] { background: transparent; height: 2.2rem; }
 .kv span:nth-child(even) { text-align: right; color: var(--ink); font-weight: 500; }
 .zone-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.25rem 0; font-size: 0.82rem; }
 .zone-swatch { width: 0.85rem; height: 0.85rem; border-radius: 2px; border: 1px solid rgba(18, 38, 58, 0.15); }
-.sw-aman { background: var(--aman-bg); }
+.sw-aman { background: #FFFFFF; }
 .sw-waspada { background: var(--waspada-bg); }
 .sw-awas { background: var(--awas-bg); }
 .zone-range { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -532,7 +532,10 @@ def _add_alert_zones(fig: go.Figure, dynamic_min: float, dynamic_max: float) -> 
         y0_clip = max(y0, dynamic_min)
         y1_clip = min(y1, dynamic_max)
         if y0_clip >= y1_clip: continue
-        fig.add_hrect(y0=y0_clip, y1=y1_clip, fillcolor=warna, opacity=opacity, line_width=0, layer="below")
+        # Zona Aman (keadaan normal) tidak diwarnai agar pita Waspada/Awas lebih menonjol
+        # dan perbedaan area terobservasi vs prakiraan terlihat jelas. Labelnya tetap ditampilkan.
+        if label != ALERT_ZONES[0][3]:
+            fig.add_hrect(y0=y0_clip, y1=y1_clip, fillcolor=warna, opacity=opacity, line_width=0, layer="below")
         fig.add_annotation(xref="paper", yref="y", x=0.995, y=(y0_clip + y1_clip) / 2, text=label, showarrow=False, xanchor="right", yanchor="middle", font=dict(color="#5B6B7A", size=11))
 
 def build_comparison_chart(df_plot: pd.DataFrame, data_dsda: Optional[dict], show_15min: bool, x_range: tuple) -> go.Figure:
@@ -565,7 +568,7 @@ def build_comparison_chart(df_plot: pd.DataFrame, data_dsda: Optional[dict], sho
         fig.add_shape(
             type="rect", xref="x", yref="paper",
             x0=waktu_sekarang, x1=x_end, y0=0, y1=1,
-            fillcolor="rgba(18,38,58,0.045)", line_width=0, layer="below",
+            fillcolor="rgba(18,38,58,0.06)", line_width=0, layer="below",
         )
 
     # 1. Observasi per jam, dengan area fill gradien di bawah garis
@@ -623,10 +626,16 @@ def build_comparison_chart(df_plot: pd.DataFrame, data_dsda: Optional[dict], sho
         )
         fig.add_annotation(
             x=waktu_sekarang, y=1, xref="x", yref="paper",
-            text=f" Sekarang, {waktu_sekarang.strftime('%H:%M')} WIB",
-            showarrow=False, xanchor="left", yanchor="top",
+            text=f" Sekarang, {waktu_sekarang.strftime('%H:%M')} WIB<br> Prakiraan ▸",
+            showarrow=False, xanchor="left", yanchor="top", align="left",
             font=dict(color="#12263A", size=11),
             bgcolor="rgba(255,255,255,0.85)",
+        )
+        fig.add_annotation(
+            x=waktu_sekarang, y=1, xref="x", yref="paper",
+            text="◂ Terobservasi ",
+            showarrow=False, xanchor="right", yanchor="top",
+            font=dict(color="#5B6B7A", size=11),
         )
         # Penanda titik observasi terakhir
         fig.add_trace(go.Scatter(
@@ -642,7 +651,7 @@ def build_comparison_chart(df_plot: pd.DataFrame, data_dsda: Optional[dict], sho
         template="plotly_white",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="#FFFFFF",
-        margin=dict(l=8, r=12, t=34, b=8),
+        margin=dict(l=8, r=12, t=56, b=8),
         hovermode="x unified",
         hoverlabel=dict(bgcolor="white", bordercolor="#D5DDE5", font=dict(size=12, family=fonts, color="#12263A")),
         font=dict(family=fonts, color="#12263A", size=12),
@@ -657,7 +666,7 @@ def build_comparison_chart(df_plot: pd.DataFrame, data_dsda: Optional[dict], sho
             tickfont=sumbu_font, range=[dynamic_min, dynamic_max],
             gridcolor="#E8EDF2", gridwidth=1, zeroline=False, showline=False,
         ),
-        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0, font=dict(size=12), bgcolor="rgba(0,0,0,0)"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.03, xanchor="left", x=0, font=dict(size=12), bgcolor="rgba(0,0,0,0)"),
     )
     return fig
 
