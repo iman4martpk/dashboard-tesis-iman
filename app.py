@@ -170,6 +170,13 @@ CUSTOM_CSS = """
 
 .stApp { background: var(--paper); color: var(--ink); font-family: var(--sans); }
 header[data-testid="stHeader"] { background: transparent; height: 2.2rem; }
+/* Sembunyikan Fork + ikon GitHub, menu titik tiga (#MainMenu) tetap ada */
+[data-testid="stToolbarActions"],
+[data-testid="stAppDeployButton"],
+.stAppDeployButton,
+.stDeployButton,
+[data-testid="stToolbar"] a[href*="github.com"],
+[data-testid="stAppToolbar"] a[href*="github.com"] { display: none !important; }
 .block-container { max-width: 1280px; padding: 1.3rem 2rem 1.5rem; }
 [data-testid="stMain"] [data-testid="stVerticalBlock"] { gap: 0.55rem; }
 
