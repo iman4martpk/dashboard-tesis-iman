@@ -4,9 +4,10 @@ Dashboard Monitoring Pasut Hibrida (UTide + LSTM) - Stasiun Pasar Ikan, Jakarta.
 Aplikasi Streamlit ini menampilkan perbandingan performa pendekatan
 prediksi pasang surut air laut dengan data observasi independen secara REAL-TIME.
 
-Catatan versi desain: seluruh logika data, metrik, filter, dan widget sama dengan
-versi sebelumnya. Yang berubah hanya tampilan (CSS, susunan halaman, gaya grafik,
-tabel metrik, dan teks label).
+Catatan versi desain (v3, padat): seluruh logika data, metrik, filter, dan widget
+sama dengan versi sebelumnya. Yang berubah hanya tampilan: tata letak lebih rapat,
+informasi pendukung (periode aktif, zona siaga, metode, sumber data) dipindah ke
+sidebar, dan informasi yang berulang di halaman utama dihapus.
 """
 
 from __future__ import annotations
@@ -155,7 +156,7 @@ CUSTOM_CSS = """
     --ink: #12263A;
     --muted: #5B6B7A;
     --rule: #D5DDE5;
-    --paper: #F7F9FB;
+    --paper: #F4F7FA;
     --card: #FFFFFF;
     --sea: #1F4E9C;
     --live: #B8337A;
@@ -168,8 +169,9 @@ CUSTOM_CSS = """
 }
 
 .stApp { background: var(--paper); color: var(--ink); font-family: var(--sans); }
-header[data-testid="stHeader"] { background: transparent; }
-.block-container { max-width: 1240px; padding-top: 2.4rem; padding-bottom: 3rem; }
+header[data-testid="stHeader"] { background: transparent; height: 2.2rem; }
+.block-container { max-width: 1280px; padding: 1.3rem 2rem 1.5rem; }
+[data-testid="stMain"] [data-testid="stVerticalBlock"] { gap: 0.55rem; }
 
 [data-testid="stMarkdownContainer"] *,
 [data-testid="stWidgetLabel"] *,
@@ -179,106 +181,108 @@ header[data-testid="stHeader"] { background: transparent; }
 [data-testid="stCheckbox"] *,
 [data-testid="stDownloadButton"] * { font-family: var(--sans) !important; }
 [data-testid="stMarkdownContainer"] .serif { font-family: var(--serif) !important; }
+[data-testid="stMarkdownContainer"] p { margin: 0; }
+[data-testid="stWidgetLabel"] p { font-size: 0.85rem; font-weight: 500; color: var(--ink); }
 
-/* ---------- Masthead ---------- */
-.masthead { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap;
-            gap: 1.5rem 3rem; padding-bottom: 1.1rem; border-bottom: 2px solid var(--ink); margin-bottom: 1.6rem; }
-.mast-title { font-size: 2.05rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.012em;
-              color: var(--ink); max-width: 30ch; }
-.mast-sub { margin-top: 0.6rem; font-size: 1rem; font-weight: 500; color: var(--ink); }
-.mast-author { margin-top: 0.15rem; font-size: 0.9rem; color: var(--muted); }
+/* ---------- Masthead (satu baris) ---------- */
+.masthead { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
+            gap: 0.6rem 2rem; padding-bottom: 0.7rem; border-bottom: 2px solid var(--ink); }
+.mast-title { font-size: 1.6rem; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
+.mast-sub { margin-top: 0.2rem; font-size: 0.88rem; color: var(--muted); }
+.mast-sub b { color: var(--ink); font-weight: 600; }
 
-.live { min-width: 15rem; text-align: right; }
-.live-label { display: flex; justify-content: flex-end; align-items: center; font-size: 0.85rem; font-weight: 500; color: var(--muted); }
-.live-row { display: flex; justify-content: flex-end; align-items: baseline; flex-wrap: wrap; gap: 0.15rem 0.5rem; margin-top: 0.2rem; }
-.live-val { font-size: 2.7rem; line-height: 1; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.live-val-off { font-size: 1.5rem; color: var(--muted); }
-.live-unit { font-size: 1rem; color: var(--muted); }
-.live-meta { margin-top: 0.4rem; font-size: 0.85rem; color: var(--muted); }
-.pulse { display: inline-block; width: 0.55rem; height: 0.55rem; margin-right: 0.45rem; border-radius: 50%;
+.live { display: flex; align-items: center; gap: 0.8rem; padding: 0.4rem 0.9rem;
+        background: var(--card); border: 1px solid var(--rule); border-left: 3px solid var(--live); border-radius: 4px; }
+.live.off { border-left-color: #9AA7B3; }
+.live-val { font-size: 1.9rem; line-height: 1; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.live-val small { margin-left: 0.2rem; font-size: 0.85rem; font-weight: 500; color: var(--muted); font-family: var(--sans); }
+.live-val-off { font-size: 1.05rem; color: var(--muted); }
+.live-txt { font-size: 0.78rem; line-height: 1.35; color: var(--muted); }
+.live-txt b { display: block; font-size: 0.82rem; color: var(--ink); font-weight: 600; }
+.pulse { display: inline-block; width: 0.5rem; height: 0.5rem; margin-right: 0.35rem; border-radius: 50%;
          background: var(--live); animation: pulse 2.2s ease-in-out infinite; }
 .pulse-off { background: #9AA7B3; animation: none; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-.pill { display: inline-block; padding: 0.12rem 0.65rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+.pill { display: inline-block; padding: 0.08rem 0.55rem; border-radius: 999px; font-size: 0.74rem; font-weight: 600; }
 .pill-aman { background: var(--aman-bg); color: var(--aman-fg); }
 .pill-waspada { background: var(--waspada-bg); color: var(--waspada-fg); }
 .pill-awas { background: var(--awas-bg); color: var(--awas-fg); }
 
 /* ---------- Judul seksi ---------- */
-.sec { margin: 2.2rem 0 0.8rem; }
-.sec-title { font-size: 1.4rem; line-height: 1.25; font-weight: 600; color: var(--ink); }
-.sec-sub { margin-top: 0.2rem; max-width: 75ch; font-size: 0.92rem; color: var(--muted); line-height: 1.5; }
+.sec { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 0.7rem; margin: 0.9rem 0 0.1rem;
+       padding-bottom: 0.3rem; border-bottom: 1px solid var(--rule); }
+.sec-title { font-size: 1.15rem; line-height: 1.3; font-weight: 600; color: var(--ink); }
+.sec-sub { font-size: 0.82rem; color: var(--muted); }
 
-/* ---------- Ringkasan akurasi ---------- */
-.kpi-grid { display: grid; grid-template-columns: minmax(15rem, 20rem) 1fr; gap: 1rem; }
-.kpi-hero, .kpi-bars { background: var(--card); border: 1px solid var(--rule); border-radius: 6px; padding: 1.1rem 1.3rem; }
-.kpi-hero-label { font-size: 0.9rem; font-weight: 500; color: var(--muted); }
-.kpi-hero-val { margin-top: 0.4rem; font-size: 3.4rem; line-height: 1; font-weight: 600; color: var(--sea); font-variant-numeric: tabular-nums; }
-.kpi-hero-val .unit { margin-left: 0.2rem; font-size: 1.5rem; font-weight: 500; color: var(--muted); }
-.kpi-hero-val.kpi-empty { color: #9AA7B3; }
-.kpi-hero-note { margin-top: 0.7rem; font-size: 0.88rem; line-height: 1.45; color: var(--muted); }
-.kpi-bars-title { margin-bottom: 0.9rem; font-size: 0.9rem; font-weight: 500; color: var(--muted); }
-.kpi-bars-empty { font-size: 0.92rem; color: var(--muted); }
-
-.bar-row { display: grid; grid-template-columns: minmax(9rem, 13rem) 1fr 5.5rem 5.5rem; align-items: center; gap: 0.9rem; padding: 0.55rem 0; }
-.bar-row + .bar-row { border-top: 1px solid #EBEFF3; }
-.bar-name-main { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; }
-.bar-name-sub { margin-left: 1.2rem; font-size: 0.8rem; color: var(--muted); }
-.swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; }
-.bar-track { height: 0.55rem; background: #E8EDF2; border-radius: 4px; overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 4px; }
-.bar-val { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
-.bar-flag { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-.bar-flag.best { font-weight: 600; color: var(--good); }
+/* ---------- Ringkasan akurasi (satu baris, 4 kartu) ---------- */
+.kpi-grid { display: grid; grid-template-columns: 1.3fr repeat(3, 1fr); gap: 0.6rem; }
+.kpi { background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 0.65rem 0.9rem; }
+.kpi-hero { border-top: 3px solid var(--sea); }
+.kpi-label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; font-weight: 500; color: var(--muted); }
+.kpi-val { margin-top: 0.25rem; font-size: 1.55rem; line-height: 1.1; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.kpi-val small { margin-left: 0.15rem; font-size: 0.8rem; font-weight: 500; color: var(--muted); font-family: var(--sans); }
+.kpi-hero .kpi-val { font-size: 2.3rem; color: var(--sea); }
+.kpi-hero .kpi-val.kpi-empty { color: #9AA7B3; }
+.kpi-note { margin-top: 0.25rem; font-size: 0.76rem; color: var(--muted); }
+.kpi-note.best { font-weight: 600; color: var(--good); }
+.kpi-bar { height: 0.3rem; margin-top: 0.4rem; background: #E8EDF2; border-radius: 3px; overflow: hidden; }
+.kpi-bar > div { height: 100%; border-radius: 3px; }
+.swatch { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 2px; flex: none; }
 
 /* ---------- Grafik ---------- */
-[data-testid="stPlotlyChart"] { background: var(--card); border: 1px solid var(--rule); border-radius: 6px; padding: 0.6rem 0.6rem 0.2rem; }
-.fig-caption { margin-top: 0.6rem; max-width: 90ch; font-size: 0.88rem; line-height: 1.5; color: var(--muted); }
-.fig-caption b { color: var(--ink); }
+[data-testid="stPlotlyChart"] { background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 0.3rem 0.4rem 0; }
+.fig-caption, .tbl-caption { max-width: 100ch; font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
+.fig-caption b, .tbl-caption b { color: var(--ink); }
 
 /* ---------- Tabel ilmiah (tiga garis) ---------- */
-.tbl-caption { margin: 0.2rem 0 0.5rem; max-width: 90ch; font-size: 0.88rem; line-height: 1.5; color: var(--muted); }
-.tbl-caption b { color: var(--ink); }
 .tbl-wrap { overflow-x: auto; }
-.tbl { width: 100%; border-collapse: collapse; font-size: 0.92rem; font-variant-numeric: tabular-nums; background: transparent; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 0.86rem; font-variant-numeric: tabular-nums; background: transparent; }
 .tbl th, .tbl td { border: none; }
-.tbl thead th { padding: 0.6rem 0.8rem; text-align: right; font-weight: 600; color: var(--ink);
+.tbl thead th { padding: 0.4rem 0.7rem; text-align: right; font-weight: 600; color: var(--ink); white-space: nowrap;
                 border-top: 2px solid var(--ink); border-bottom: 1px solid var(--ink); background: transparent; }
-.tbl tbody td { padding: 0.55rem 0.8rem; text-align: right; border-bottom: 1px solid var(--rule); background: transparent; }
+.tbl tbody td { padding: 0.38rem 0.7rem; text-align: right; border-bottom: 1px solid var(--rule); background: transparent; }
 .tbl tbody tr:last-child td { border-bottom: 2px solid var(--ink); }
 .tbl th:first-child, .tbl td:first-child { text-align: left; }
 .tbl td.best { font-weight: 700; color: var(--good); background: #EAF6F1; }
+.tbl td .swatch { margin-right: 0.5rem; }
 
-.note { margin-top: 1rem; padding: 0.9rem 1.1rem; background: #EAF1F9; border: 1px solid #CFDDEC; border-radius: 6px; font-size: 0.95rem; line-height: 1.6; }
-.note-title { margin-bottom: 0.2rem; font-weight: 600; }
+.note { padding: 0.55rem 0.85rem; background: #EAF1F9; border: 1px solid #CFDDEC; border-left: 3px solid var(--sea);
+        border-radius: 4px; font-size: 0.88rem; line-height: 1.5; }
+.note b.lead { margin-right: 0.3rem; }
 
 /* ---------- Sidebar ---------- */
-[data-testid="stSidebar"] { background: #EDF1F5; border-right: 1px solid var(--rule); }
-.side-title { font-size: 1.3rem; font-weight: 600; color: var(--ink); }
-.side-sub { margin: 0.2rem 0 0.9rem; font-size: 0.86rem; line-height: 1.45; color: var(--muted); }
-.side-h { margin: 0.2rem 0 0.4rem; font-size: 0.9rem; font-weight: 600; color: var(--ink); }
-.zone-row { display: flex; align-items: center; gap: 0.6rem; margin: 0.4rem 0; font-size: 0.88rem; }
-.zone-swatch { width: 0.95rem; height: 0.95rem; border-radius: 2px; border: 1px solid rgba(18, 38, 58, 0.15); }
+[data-testid="stSidebar"] { background: #EAEFF4; border-right: 1px solid var(--rule); }
+[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 1rem; }
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.5rem; }
+[data-testid="stSidebar"] hr { margin: 0.6rem 0; }
+.side-title { font-size: 1.2rem; font-weight: 600; color: var(--ink); }
+.side-h { margin: 0 0 0.3rem; font-size: 0.85rem; font-weight: 600; color: var(--ink); }
+.side-txt { font-size: 0.8rem; line-height: 1.5; color: var(--muted); }
+.side-txt b { color: var(--ink); font-weight: 600; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.8rem; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.kv span:nth-child(odd) { color: var(--muted); }
+.kv span:nth-child(even) { text-align: right; color: var(--ink); font-weight: 500; }
+.zone-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.25rem 0; font-size: 0.82rem; }
+.zone-swatch { width: 0.85rem; height: 0.85rem; border-radius: 2px; border: 1px solid rgba(18, 38, 58, 0.15); }
 .sw-aman { background: var(--aman-bg); }
 .sw-waspada { background: var(--waspada-bg); }
 .sw-awas { background: var(--awas-bg); }
 .zone-range { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.meth { display: flex; gap: 0.5rem; margin: 0.3rem 0; font-size: 0.8rem; line-height: 1.4; color: var(--muted); }
+.meth .swatch { margin-top: 0.3rem; }
+.meth b { color: var(--ink); font-weight: 600; }
 
-/* ---------- Tombol unduh & footer ---------- */
-[data-testid="stDownloadButton"] button { border: 1px solid var(--ink); background: #FFFFFF; color: var(--ink); border-radius: 4px; font-weight: 500; }
+/* ---------- Tombol unduh ---------- */
+[data-testid="stDownloadButton"] button { border: 1px solid var(--ink); background: #FFFFFF; color: var(--ink); border-radius: 4px; font-weight: 500; padding: 0.2rem 0.8rem; }
 [data-testid="stDownloadButton"] button:hover { background: var(--ink); color: #FFFFFF; border-color: var(--ink); }
-.foot { margin-top: 2.6rem; padding-top: 1rem; border-top: 1px solid var(--rule); font-size: 0.82rem; line-height: 1.6; color: var(--muted); }
 
 /* ---------- Layar kecil & preferensi gerak ---------- */
-@media (max-width: 820px) {
-    .mast-title { font-size: 1.6rem; }
-    .live { text-align: left; min-width: 0; }
-    .live-label, .live-row { justify-content: flex-start; }
-    .kpi-grid { grid-template-columns: 1fr; }
-    .bar-row { grid-template-columns: 1fr auto; row-gap: 0.4rem; }
-    .bar-track { grid-column: 1 / -1; order: 3; }
-    .bar-flag { grid-column: 1 / -1; order: 4; }
+@media (max-width: 900px) {
+    .block-container { padding: 1rem 1rem 1.5rem; }
+    .mast-title { font-size: 1.35rem; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .kpi-hero { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
 </style>
@@ -379,31 +383,29 @@ def build_masthead_html(data_dsda: Optional[dict]) -> str:
         zona, kelas = _zone_for_value(data_dsda["tma"])
         live = (
             '<div class="live">'
-            '<div class="live-label"><span class="pulse"></span>Observasi DSDA terbaru</div>'
-            f'<div class="live-row"><span class="serif live-val">{data_dsda["tma"]:g}</span>'
-            f'<span class="live-unit">cm</span><span class="pill pill-{kelas}">{zona}</span></div>'
-            f'<div class="live-meta">Pembaruan terakhir pukul {data_dsda["jam"]} WIB</div>'
+            f'<div class="serif live-val">{data_dsda["tma"]:g}<small>cm</small></div>'
+            f'<div class="live-txt"><b><span class="pulse"></span>Observasi DSDA terbaru</b>'
+            f'Pukul {data_dsda["jam"]} WIB &nbsp;<span class="pill pill-{kelas}">{zona}</span></div>'
             '</div>'
         )
     else:
         live = (
-            '<div class="live">'
-            '<div class="live-label"><span class="pulse pulse-off"></span>Observasi DSDA terbaru</div>'
-            '<div class="live-row"><span class="serif live-val live-val-off">Tidak tersedia</span></div>'
-            '<div class="live-meta">Data live offline atau tertunda</div>'
+            '<div class="live off">'
+            '<div class="serif live-val live-val-off">Tidak tersedia</div>'
+            '<div class="live-txt"><b><span class="pulse pulse-off"></span>Observasi DSDA terbaru</b>'
+            'Data live offline atau tertunda</div>'
             '</div>'
         )
     return (
         '<div class="masthead"><div class="mast-text">'
         '<div class="serif mast-title">Peramalan pasang surut hibrida UTide dan LSTM</div>'
-        '<div class="mast-sub">Stasiun Pasar Ikan, Jakarta</div>'
-        '<div class="mast-author">Dashboard tesis oleh Iman, S.Si.</div>'
+        '<div class="mast-sub"><b>Stasiun Pasar Ikan, Jakarta.</b> Dashboard tesis oleh Iman, S.Si.</div>'
         f'</div>{live}</div>'
     )
 
 def build_section_header_html(judul: str, sub: str = "") -> str:
-    sub_html = f'<div class="sec-sub">{sub}</div>' if sub else ""
-    return f'<div class="sec"><div class="serif sec-title">{judul}</div>{sub_html}</div>'
+    sub_html = f'<span class="sec-sub">{sub}</span>' if sub else ""
+    return f'<div class="sec"><span class="serif sec-title">{judul}</span>{sub_html}</div>'
 
 _NAMA_METODE = {"UTIDE": "UTide", "LSTM": "LSTM", "HIBRIDA": "Hibrida"}
 _KET_METODE = {"UTIDE": "Astronomis (harmonik)", "LSTM": "Data-driven", "HIBRIDA": "Integrasi UTide dan LSTM"}
@@ -412,43 +414,40 @@ def build_kpi_html(kpi: Optional[KpiResult]) -> str:
     if kpi is None:
         return (
             '<div class="kpi-grid">'
-            '<div class="kpi-hero"><div class="kpi-hero-label">Reduksi eror Hibrida terhadap UTide</div>'
-            '<div class="serif kpi-hero-val kpi-empty">&ndash;</div>'
-            '<div class="kpi-hero-note">Belum ada data observasi pada rentang waktu ini.</div></div>'
-            '<div class="kpi-bars"><div class="kpi-bars-empty">RMSE belum dapat dihitung tanpa data observasi.</div></div>'
+            '<div class="kpi kpi-hero" style="grid-column:1/-1"><div class="kpi-label">Reduksi eror Hibrida terhadap UTide</div>'
+            '<div class="serif kpi-val kpi-empty">&ndash;</div>'
+            '<div class="kpi-note">Belum ada data observasi pada rentang waktu ini, sehingga RMSE belum dapat dihitung.</div></div>'
             '</div>'
         )
 
     if kpi.reduksi_eror_persen >= 0:
-        catatan = "RMSE Hibrida lebih rendah daripada UTide pada rentang yang dipilih."
+        catatan = "RMSE Hibrida lebih rendah daripada UTide."
     else:
-        catatan = "RMSE Hibrida lebih tinggi daripada UTide pada rentang yang dipilih."
+        catatan = "RMSE Hibrida lebih tinggi daripada UTide."
 
     metode = [kpi.utide, kpi.lstm, kpi.hibrida]
     rmse_maks = max(m.rmse for m in metode) or 1.0
-    baris = ""
+    kartu = ""
     for m in metode:
         lebar = max(m.rmse / rmse_maks * 100.0, 2.0)
         if m.is_terbaik:
-            flag = '<div class="bar-flag best">Terendah</div>'
+            flag = '<div class="kpi-note best">Terendah</div>'
         else:
-            flag = f'<div class="bar-flag">+{m.selisih_dari_terbaik:.1f} cm</div>'
-        baris += (
-            '<div class="bar-row">'
-            f'<div class="bar-name"><div class="bar-name-main"><span class="swatch" style="background:{m.warna}"></span>{_NAMA_METODE[m.nama]}</div>'
-            f'<div class="bar-name-sub">{_KET_METODE[m.nama]}</div></div>'
-            f'<div class="bar-track"><div class="bar-fill" style="width:{lebar:.1f}%;background:{m.warna}"></div></div>'
-            f'<div class="bar-val">{m.rmse:.2f} cm</div>{flag}'
+            flag = f'<div class="kpi-note">+{m.selisih_dari_terbaik:.1f} cm dari terendah</div>'
+        kartu += (
+            '<div class="kpi">'
+            f'<div class="kpi-label"><span class="swatch" style="background:{m.warna}"></span>RMSE {_NAMA_METODE[m.nama]}</div>'
+            f'<div class="serif kpi-val">{m.rmse:.2f}<small>cm</small></div>'
+            f'<div class="kpi-bar"><div style="width:{lebar:.1f}%;background:{m.warna}"></div></div>{flag}'
             '</div>'
         )
 
     return (
         '<div class="kpi-grid">'
-        '<div class="kpi-hero"><div class="kpi-hero-label">Reduksi eror Hibrida terhadap UTide</div>'
-        f'<div class="serif kpi-hero-val">{kpi.reduksi_eror_persen:.2f}<span class="unit">%</span></div>'
-        f'<div class="kpi-hero-note">{catatan}</div></div>'
-        '<div class="kpi-bars"><div class="kpi-bars-title">RMSE terhadap observasi per jam. Batang lebih pendek berarti lebih akurat.</div>'
-        f'{baris}</div>'
+        '<div class="kpi kpi-hero"><div class="kpi-label">Reduksi eror Hibrida terhadap UTide</div>'
+        f'<div class="serif kpi-val">{kpi.reduksi_eror_persen:.2f}<small>%</small></div>'
+        f'<div class="kpi-note">{catatan}</div></div>'
+        f'{kartu}'
         '</div>'
     )
 
@@ -467,6 +466,35 @@ def build_zone_legend_html() -> str:
         )
     return f'<div class="side-h">Zona tinggi muka air</div>{baris}'
 
+def build_method_legend_html() -> str:
+    baris = ""
+    for kode, warna in (("UTIDE", COLOR_PALETTE["utide"]), ("LSTM", COLOR_PALETTE["lstm"]), ("HIBRIDA", COLOR_PALETTE["hibrida"])):
+        baris += (
+            f'<div class="meth"><span class="swatch" style="background:{warna}"></span>'
+            f'<span><b>{_NAMA_METODE[kode]}</b>: {_KET_METODE[kode]}</span></div>'
+        )
+    return f'<div class="side-h">Pendekatan peramalan</div>{baris}'
+
+def build_active_period_html(pilihan_mode: str, df_filtered: pd.DataFrame) -> str:
+    desc = html.escape(PRESETS[pilihan_mode]["desc"])
+    if df_filtered.empty:
+        awal = akhir = "-"
+    else:
+        awal = df_filtered[COL_DATETIME].min().strftime("%d %b %Y %H:%M")
+        akhir = df_filtered[COL_DATETIME].max().strftime("%d %b %Y %H:%M")
+    n_total = len(df_filtered)
+    n_obs = int(df_filtered[COL_OBSERVASI].notna().sum())
+    return (
+        '<div class="side-h">Periode aktif</div>'
+        f'<div class="side-txt" style="margin-bottom:0.4rem">{desc}</div>'
+        '<div class="kv">'
+        f'<span>Awal</span><span>{awal}</span>'
+        f'<span>Akhir</span><span>{akhir}</span>'
+        f'<span>Jam tersedia</span><span>{n_total}</span>'
+        f'<span>Jam beramati</span><span>{n_obs}</span>'
+        '</div>'
+    )
+
 def render_header(data_dsda: Optional[dict]) -> None:
     st.markdown(build_masthead_html(data_dsda), unsafe_allow_html=True)
 
@@ -474,7 +502,7 @@ def render_kpi_section(kpi: Optional[KpiResult]) -> None:
     st.markdown(
         build_section_header_html(
             "Ringkasan akurasi",
-            "Selisih prediksi terhadap observasi per jam pada rentang waktu yang dipilih.",
+            "Selisih prediksi terhadap observasi per jam pada rentang yang dipilih. Batang lebih pendek berarti lebih akurat.",
         ),
         unsafe_allow_html=True,
     )
@@ -553,16 +581,17 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict],
                 bgcolor="rgba(255,255,255,0.85)",
             )
 
-    sumbu_font = dict(family="IBM Plex Sans, Segoe UI, Arial, sans-serif", size=11, color="#5B6B7A")
+    fonts = "IBM Plex Sans, Segoe UI, Arial, sans-serif"
+    sumbu_font = dict(family=fonts, size=11, color="#5B6B7A")
     fig.update_layout(
-        height=480,
+        height=430,
         template="plotly_white",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="#FFFFFF",
-        margin=dict(l=10, r=14, t=40, b=10),
+        margin=dict(l=8, r=12, t=34, b=8),
         hovermode="x unified",
-        hoverlabel=dict(bgcolor="white", bordercolor="#D5DDE5", font=dict(size=12, family="IBM Plex Sans, Segoe UI, Arial, sans-serif", color="#12263A")),
-        font=dict(family="IBM Plex Sans, Segoe UI, Arial, sans-serif", color="#12263A", size=12),
+        hoverlabel=dict(bgcolor="white", bordercolor="#D5DDE5", font=dict(size=12, family=fonts, color="#12263A")),
+        font=dict(family=fonts, color="#12263A", size=12),
         xaxis=dict(
             tickfont=sumbu_font, showgrid=False, showline=True, linecolor="#9AA7B3", ticks="outside", tickcolor="#9AA7B3",
             tickformat="%d %b", hoverformat="%d %b %Y, %H:%M",
@@ -573,31 +602,28 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict],
             tickfont=sumbu_font, range=[dynamic_min, dynamic_max],
             gridcolor="#E8EDF2", gridwidth=1, zeroline=False, showline=False,
         ),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=12), bgcolor="rgba(0,0,0,0)"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0, font=dict(size=12), bgcolor="rgba(0,0,0,0)"),
     )
     return fig
 
 def render_chart_section(pilihan_mode: str, df_filtered: pd.DataFrame, data_dsda: Optional[dict], show_15min: bool) -> None:
-    desc = html.escape(PRESETS[pilihan_mode]["desc"])
     st.markdown(
-        build_section_header_html("Observasi dan prediksi", f"{html.escape(pilihan_mode)}. {desc}"),
+        build_section_header_html("Observasi dan prediksi", html.escape(pilihan_mode)),
         unsafe_allow_html=True,
     )
     fig = build_comparison_chart(df_filtered, data_dsda, show_15min)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     st.markdown(
-        '<div class="fig-caption"><b>Gambar 1.</b> Tinggi muka air observasi (per jam dan per 15 menit) '
-        'dibandingkan dengan prediksi harmonik UTide, LSTM, dan hibrida UTide dengan LSTM. '
-        'Pita warna menandai zona aman, waspada rob, dan awas rob.</div>',
+        '<div class="fig-caption"><b>Gambar 1.</b> Tinggi muka air observasi dibandingkan dengan prediksi '
+        'UTide, LSTM, dan Hibrida. Pita warna menandai zona siaga rob (rincian di panel samping).</div>',
         unsafe_allow_html=True,
     )
 
 def render_data_table(df_filtered: pd.DataFrame) -> None:
     st.markdown(
-        build_section_header_html("Data numerik", "Nilai observasi dan prediksi pada rentang waktu yang sedang ditampilkan."),
+        build_section_header_html("Data numerik", "Dasar perhitungan Gambar 1."),
         unsafe_allow_html=True,
     )
-    st.markdown('<div class="tbl-caption"><b>Tabel 2.</b> Data numerik mentah yang menjadi dasar Gambar 1.</div>', unsafe_allow_html=True)
     df_tampilan = pd.DataFrame({
         COL_DATETIME: df_filtered[COL_DATETIME],
         COL_OBSERVASI: df_filtered[COL_OBSERVASI],
@@ -606,14 +632,17 @@ def render_data_table(df_filtered: pd.DataFrame) -> None:
         COL_HIBRIDA: df_filtered[COL_HIBRIDA],
     })
 
-    st.dataframe(df_tampilan.reset_index(drop=True), use_container_width=True, hide_index=True)
+    st.markdown('<div class="tbl-caption"><b>Tabel 2.</b> Data numerik mentah pada rentang waktu yang ditampilkan (cm).</div>', unsafe_allow_html=True)
+    st.dataframe(df_tampilan.reset_index(drop=True), use_container_width=True, hide_index=True, height=300)
     csv_data = df_tampilan.to_csv(index=False).encode("utf-8")
     st.download_button(label="Unduh data tabular (.csv)", data=csv_data, file_name="DATA_INSPEKSI_PASUT.csv", mime="text/csv")
 
-def render_footer() -> None:
-    st.markdown(
-        '<div class="foot">Sumber observasi: Posko Banjir DSDA DKI Jakarta. '
-        'Prediksi: harmonik UTide dan LSTM residual. Halaman diperbarui otomatis setiap 15 menit.</div>',
+def render_sidebar_about() -> None:
+    st.sidebar.markdown(
+        '<div class="side-h">Sumber dan pembaruan</div>'
+        '<div class="side-txt">Observasi: Posko Banjir DSDA DKI Jakarta.<br>'
+        'Prediksi: harmonik UTide dan LSTM residual.<br>'
+        'Halaman diperbarui otomatis setiap 15 menit.</div>',
         unsafe_allow_html=True,
     )
 
@@ -628,6 +657,7 @@ _KOLOM_METRIK = [
     ("MAE (cm) ↓", "{:.3f}", "min"),
     ("Koefisien Determinasi (R²) ↑", "{:.3f}", "max"),
 ]
+_WARNA_BARIS_METRIK = [COLOR_PALETTE["utide"], COLOR_PALETTE["lstm"], COLOR_PALETTE["hibrida"]]
 
 def build_metrics_table_html(df_metrics: pd.DataFrame) -> str:
     """Tabel metrik bergaya jurnal (tiga garis). Sel terbaik tiap kolom ditebalkan."""
@@ -638,8 +668,9 @@ def build_metrics_table_html(df_metrics: pd.DataFrame) -> str:
 
     kepala = "<th>Pendekatan peramalan</th>" + "".join(f"<th>{k}</th>" for k, _f, _a in _KOLOM_METRIK)
     isi = ""
-    for _, baris in df_metrics.iterrows():
-        sel = f'<td>{html.escape(str(baris["Pendekatan Peramalan"]))}</td>'
+    for i, (_, baris) in enumerate(df_metrics.iterrows()):
+        warna = _WARNA_BARIS_METRIK[i % len(_WARNA_BARIS_METRIK)]
+        sel = f'<td><span class="swatch" style="background:{warna}"></span>{html.escape(str(baris["Pendekatan Peramalan"]))}</td>'
         for kolom, fmt, _arah in _KOLOM_METRIK:
             kelas = ' class="best"' if baris[kolom] == terbaik[kolom] else ""
             sel += f"<td{kelas}>{fmt.format(baris[kolom])}</td>"
@@ -649,24 +680,22 @@ def build_metrics_table_html(df_metrics: pd.DataFrame) -> str:
 def build_interpretation_html(best_method: str, best_rmse: float, impr_utide: float) -> str:
     if "Hibrida" in best_method:
         isi = (
-            "Berdasarkan metrik evaluasi di atas, pendekatan <b>Hibrida UTide+LSTM (Integrasi Residual)</b> "
-            "terbukti memberikan performa peramalan paling akurat dengan tingkat <i>Root Mean Square Error</i> (RMSE) "
-            f"terendah sebesar <b>{best_rmse:.2f} cm</b>. Penggunaan model pembelajaran mesin <i>data-driven</i> ini berhasil "
-            "menangkap pola anomali non-astronomis dan mampu mereduksi tingkat kesalahan dari pendekatan astronomis murni (UTide) "
-            f"secara signifikan sebesar <b>{impr_utide:.1f}%</b>."
+            "Pendekatan <b>Hibrida UTide+LSTM</b> memberi peramalan paling akurat (RMSE terendah "
+            f"<b>{best_rmse:.2f} cm</b>). Komponen <i>data-driven</i> menangkap anomali non-astronomis sehingga "
+            f"eror UTide murni turun <b>{impr_utide:.1f}%</b>."
         )
     else:
         isi = (
-            f"Pada rentang observasi saat ini, pendekatan <b>{html.escape(best_method)}</b> menunjukkan kinerja paling presisi "
-            f"dibandingkan pendekatan lain dengan nilai hamburan eror (RMSE) sebesar <b>{best_rmse:.2f} cm</b>."
+            f"Pada rentang ini, pendekatan <b>{html.escape(best_method)}</b> paling presisi "
+            f"dengan RMSE <b>{best_rmse:.2f} cm</b>."
         )
-    return f'<div class="note"><div class="note-title">Interpretasi akademis</div>{isi}</div>'
+    return f'<div class="note"><b class="lead">Interpretasi.</b>{isi}</div>'
 
 def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -> None:
     st.markdown(
         build_section_header_html(
             "Evaluasi kinerja peramalan",
-            "Akurasi, RMSE, MAE, dan koefisien determinasi dihitung terhadap observasi per jam untuk membandingkan ketiga pendekatan.",
+            "Akurasi, RMSE, MAE, dan R² terhadap observasi per jam.",
         ),
         unsafe_allow_html=True,
     )
@@ -737,8 +766,8 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -
     impr_utide = ((rmse_u - rmse_h) / rmse_u) * 100 if rmse_u else 0
 
     st.markdown(
-        f'<div class="tbl-caption"><b>Tabel 1.</b> Metrik akurasi tiga pendekatan peramalan terhadap '
-        f'<b>{len(obs)} jam</b> observasi aktual. Nilai terbaik pada setiap kolom ditebalkan.</div>',
+        f'<div class="tbl-caption"><b>Tabel 1.</b> Metrik akurasi tiga pendekatan terhadap '
+        f'<b>{len(obs)} jam</b> observasi aktual. Nilai terbaik per kolom ditebalkan.</div>',
         unsafe_allow_html=True,
     )
     st.markdown(build_metrics_table_html(df_metrics), unsafe_allow_html=True)
@@ -749,11 +778,7 @@ def render_thesis_analysis(df_master: pd.DataFrame, df_filtered: pd.DataFrame) -
 # 7. SIDEBAR CONTROLS & MAIN APP
 # =========================================================================
 def render_sidebar_controls(df: pd.DataFrame) -> tuple[str, Optional[object], Optional[object], bool]:
-    st.sidebar.markdown(
-        '<div class="serif side-title">Panel analisis</div>'
-        '<div class="side-sub">Pilih periode pengamatan dan lapisan data yang ditampilkan pada grafik.</div>',
-        unsafe_allow_html=True,
-    )
+    st.sidebar.markdown('<div class="serif side-title">Panel analisis</div>', unsafe_allow_html=True)
     pilihan_mode = st.sidebar.selectbox("Mode analisis / studi kasus", list(PRESETS.keys()), index=DEFAULT_PRESET_INDEX)
     custom_start = custom_end = None
     if pilihan_mode == CUSTOM_PRESET_KEY:
@@ -762,14 +787,20 @@ def render_sidebar_controls(df: pd.DataFrame) -> tuple[str, Optional[object], Op
         custom_start = st.sidebar.date_input("Tanggal mulai", min_date, min_value=min_date, max_value=max_date)
         custom_end = st.sidebar.date_input("Tanggal selesai", max_date, min_value=min_date, max_value=max_date)
 
-    st.sidebar.divider()
-    st.sidebar.markdown('<div class="side-h">Lapisan data</div>', unsafe_allow_html=True)
     show_15min = st.sidebar.checkbox("Tampilkan garis 15 menit (live scrape)", value=True, help="Menampilkan titik potong observasi DSDA per 15 menit. Grafik akan ditumpuk dengan data jam-jaman.")
 
+    return pilihan_mode, custom_start, custom_end, show_15min
+
+def render_sidebar_info(pilihan_mode: str, df_filtered: pd.DataFrame) -> None:
+    """Informasi pendukung (konteks, legenda, sumber) agar halaman utama tetap padat."""
+    st.sidebar.divider()
+    st.sidebar.markdown(build_active_period_html(pilihan_mode, df_filtered), unsafe_allow_html=True)
     st.sidebar.divider()
     st.sidebar.markdown(build_zone_legend_html(), unsafe_allow_html=True)
-
-    return pilihan_mode, custom_start, custom_end, show_15min
+    st.sidebar.divider()
+    st.sidebar.markdown(build_method_legend_html(), unsafe_allow_html=True)
+    st.sidebar.divider()
+    render_sidebar_about()
 
 def main() -> None:
     st.set_page_config(page_title=PAGE_TITLE, layout="wide", page_icon=PAGE_ICON, initial_sidebar_state="expanded")
@@ -792,6 +823,7 @@ def main() -> None:
     df_filtered = df_master[mask].copy()
 
     kpi = compute_kpis(df_filtered)
+    render_sidebar_info(pilihan_mode, df_filtered)
 
     render_header(data_dsda)
     render_kpi_section(kpi)
@@ -804,8 +836,6 @@ def main() -> None:
 
     # 3. DATA MENTAH TABULAR (PALING BAWAH)
     render_data_table(df_filtered)
-
-    render_footer()
 
 
 if __name__ == "__main__":
