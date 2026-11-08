@@ -10,6 +10,11 @@ on:
     # 🎯 GERBANG UTAMA: Menerima tembakan API dari Google Apps Script
     types: [run_scrape_hourly]
 
+# 🔒 Satu run pada satu waktu: mencegah dua run (cron + GAS) edit CSV yang sama bersamaan
+concurrency:
+  group: scraper-data
+  cancel-in-progress: false
+
 jobs:
   scrape_and_update_data:
     runs-on: ubuntu-latest
