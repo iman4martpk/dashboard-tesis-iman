@@ -38,30 +38,39 @@ NUM_RE = re.compile(r"-?\d+(?:[.,]\d+)?")
 
 
 def parse_cells(texts, pos_name=POS_NAME):
-    """texts = teks tiap sel satu baris. Return (nilai_cm, datetime_pembacaan) / None."""
-    texts = [t.strip() for t in texts]
+    """texts = teks tiap sel satu baris.
+    Return (nilai_cm, datetime_pembacaan atau None) / None kalau baris bukan pos ini."""
+    texts = [re.sub(r"\s+", " ", t or "").strip() for t in texts]
     idx = next((i for i, t in enumerate(texts) if pos_name.lower() in t.lower()), None)
     if idx is None:
         return None
     # nilai = sel angka PERTAMA setelah nama pos (nomor urut ada sebelum nama, jadi tidak ikut)
     nilai = next((float(t.replace(",", ".")) for t in texts[idx + 1:] if NUM_RE.fullmatch(t)), None)
+    if nilai is None:
+        return None
     tgl = next((t for t in texts if DATE_RE.fullmatch(t)), None)
     jam = next((t for t in texts if TIME_RE.fullmatch(t)), None)
-    if nilai is None or not tgl or not jam:
-        return None
-    return nilai, datetime.strptime(f"{tgl} {jam}", "%d/%m/%Y %H:%M")
+    ts = datetime.strptime(f"{tgl} {jam}", "%d/%m/%Y %H:%M") if tgl and jam else None
+    return nilai, ts
+
+
+JS_ROWS = """
+return Array.from(document.querySelectorAll('tr'))
+  .filter(tr => !tr.querySelector('tr'))
+  .map(tr => Array.from(tr.children).map(c => c.textContent || ''));
+"""
 
 
 def fetch_reading():
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.chrome.service import Service
-    from selenium.webdriver.common.by import By
     from selenium.webdriver.support.ui import WebDriverWait
     from webdriver_manager.chrome import ChromeDriverManager
 
     opts = Options()
     opts.add_argument("--headless=new")
+    opts.add_argument("--window-size=1920,1080")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument(
@@ -72,23 +81,33 @@ def fetch_reading():
     driver = None
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=opts)
+        driver.set_window_size(1920, 1080)
         driver.get(URL)
 
         def ambil(d):
-            rows = d.find_elements(
-                By.XPATH, f"//tr[not(.//tr) and contains(normalize-space(.), '{POS_NAME}')]"
-            )
-            for row in rows:
-                cells = [c.get_attribute("innerText") or "" for c in row.find_elements(By.XPATH, "./td|./th")]
+            for cells in d.execute_script(JS_ROWS):
                 hasil = parse_cells(cells)
                 if hasil:
-                    print(f"DEBUG baris: {[c.strip() for c in cells]}")
+                    print(f"DEBUG baris: {[re.sub(chr(92) + 's+', ' ', c).strip() for c in cells]}")
                     return hasil
             return False
 
-        return WebDriverWait(driver, 45, poll_frequency=2).until(ambil)
+        return WebDriverWait(driver, 45, poll_frequency=3).until(ambil)
     except Exception as e:
         print(f"❌ Scraper error: {type(e).__name__}: {e}")
+        if driver:
+            try:
+                rows = driver.execute_script(JS_ROWS)
+                print(f"DIAG judul={driver.title!r} jumlah_tr={len(rows)}")
+                cocok = [r for r in rows if "ikan" in " ".join(r).lower()]
+                print(f"DIAG baris mengandung 'ikan': {len(cocok)}")
+                for r in cocok[:5]:
+                    print("DIAG", [re.sub(r"\s+", " ", c).strip() for c in r])
+                if not cocok:
+                    body = driver.execute_script("return document.body ? document.body.innerText : ''")
+                    print("DIAG body[:600]:", re.sub(r"\s+", " ", body)[:600])
+            except Exception as e2:
+                print(f"DIAG gagal: {e2}")
         return None
     finally:
         if driver:
@@ -132,6 +151,9 @@ def main():
         print("❌ Pembacaan tidak ditemukan. Cek POS_NAME / struktur tabel DSDA.")
         return 1
     nilai, ts_data = hasil
+    if ts_data is None:
+        print("⚠️ Tanggal/jam pembacaan tidak ada di baris, pakai waktu run sebagai timestamp.")
+        ts_data = sekarang
     umur = (sekarang - ts_data).total_seconds() / 60
     print(f"Pembacaan DSDA: {ts_data:%Y-%m-%d %H:%M} = {nilai} cm (umur {umur:.0f} menit)")
 
