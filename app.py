@@ -232,7 +232,13 @@ header[data-testid="stHeader"] { background: transparent; height: 2.2rem; }
 
 /* ---------- Grafik ---------- */
 [data-testid="stPlotlyChart"] { background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 0.3rem 0.4rem 0; }
-.fig-caption, .tbl-caption { max-width: 100ch; font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
+[data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
+[data-testid="stElementContainer"]:has(.tbl-caption),
+[data-testid="stElementContainer"]:has(.fig-caption) { overflow: visible; }
+.fig-caption, .tbl-caption { display: block; max-width: 100ch; font-size: 0.8rem; line-height: 1.5; color: var(--muted); }
+.tbl-caption { margin: 0.45rem 0 0.5rem; padding: 0.1rem 0 0.35rem; }
+.fig-caption { margin: 0.1rem 0 0; padding-bottom: 0.3rem; }
+.tbl-wrap { margin-top: 0.35rem; }
 .fig-caption b, .tbl-caption b { color: var(--ink); }
 
 /* ---------- Tabel ilmiah (tiga garis) ---------- */
