@@ -25,10 +25,20 @@ jobs:
           python-version: '3.12.7'  # Sesuai spek laptop
           cache: 'pip'
           
-      - name: 📦 Install ML Dependencies (Instal semua dependencies yang sesuai dengan versi laptop)
+      - name: 📦 Install ML Dependencies (versi di-pin, disamakan dengan laptop)
         run: |
           python -m pip install --upgrade pip
-          pip install numpy==1.26.4 pandas==3.0.0 scikit-learn==1.8.0 tensorflow==2.21.0 joblib==1.5.3 plotly requests lxml streamlit
+          pip install \
+            numpy==2.5.4 \
+            pandas==3.0.0 \
+            scikit-learn==1.8.0 \
+            tensorflow==2.21.0 \
+            joblib==1.5.3 \
+            pyarrow==24.0.0 \
+            plotly==6.7.0 \
+            requests==2.32.3 \
+            lxml==6.0.4 \
+            streamlit==1.56.0
           
       - name: 🧠 Eksekusi Script Training & Forecast Seq2Seq
         run: python retrain_and_forecast.py 
