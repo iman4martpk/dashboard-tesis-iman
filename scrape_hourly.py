@@ -6,6 +6,7 @@ Scraper Posko Banjir DSDA -> Simpan ke 2 File CSV Terpisah:
 """
 
 import os
+import sys
 import time
 import re
 import pandas as pd
@@ -49,13 +50,14 @@ def append_to_csv(filename, waktu_fixed, nilai_cm, label_tipe):
             combined.to_csv(filename, index=False)
             print(f"✅ BERHASIL NULIS [{label_tipe}]: {waktu_str} -> {nilai_cm} cm")
         except Exception as e:
-            print(f"Error simpan CSV [{label_tipe}]: {e}")
+            print(f"❌ Error simpan CSV [{label_tipe}]: {e}")
+            raise  # biar job di Actions tampil merah, bukan hijau palsu
 
 
 def process_and_save(waktu_sekarang, nilai_cm):
     if nilai_cm is None or nilai_cm > LIMIT_SENSOR_ERROR_CM or nilai_cm < MIN_VALID_VALUE_CM:
         print(f"DEBUG: Nilai {nilai_cm} cm diblokir (di luar range valid).")
-        return
+        return False
 
     # 1. SIMPAN KE FILE HOURLY (Dibulatkan ke Jam Pas :00:00)
     waktu_hourly = waktu_sekarang.replace(minute=0, second=0, microsecond=0)
@@ -65,6 +67,7 @@ def process_and_save(waktu_sekarang, nilai_cm):
     menit_15 = (waktu_sekarang.minute // 15) * 15
     waktu_15min = waktu_sekarang.replace(minute=menit_15, second=0, microsecond=0)
     append_to_csv(FILE_15MIN, waktu_15min, nilai_cm, "15-MENIT DSDA")
+    return True
 
 
 def run_scraper_dsda():
@@ -122,5 +125,9 @@ if __name__ == "__main__":
 
     nilai_dsda_cm = run_scraper_dsda()
 
-    if nilai_dsda_cm is not None:
-        process_and_save(sekarang, nilai_dsda_cm)
+    if nilai_dsda_cm is None:
+        print("❌ Tidak ada nilai valid yang berhasil di-scrape. Run ditandai GAGAL.")
+        sys.exit(1)
+
+    if not process_and_save(sekarang, nilai_dsda_cm):
+        sys.exit(1)
