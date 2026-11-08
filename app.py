@@ -4,10 +4,13 @@ Dashboard Monitoring Pasut Hibrida (UTide + LSTM) - Stasiun Pasar Ikan, Jakarta.
 Aplikasi Streamlit ini menampilkan perbandingan performa pendekatan
 prediksi pasang surut air laut dengan data observasi independen secara REAL-TIME.
 
-Catatan versi desain (v3, padat): seluruh logika data, metrik, filter, dan widget
-sama dengan versi sebelumnya. Yang berubah hanya tampilan: tata letak lebih rapat,
-informasi pendukung (periode aktif, zona siaga, metode, sumber data) dipindah ke
-sidebar, dan informasi yang berulang di halaman utama dihapus.
+Catatan versi desain (v4): logika data, metrik, filter, dan widget sama dengan v3.
+Yang berubah hanya grafik utama:
+- data buffer 6 jam sebelum jendela ikut digambar, sumbu X dikunci ke jendela asli,
+  sehingga garis masuk mulus dari tepi kiri (tidak "putus" di jam 00:00),
+- area fill gradien di bawah garis observasi (gaya web pasut profesional),
+- shading tipis untuk area prediksi masa depan setelah garis "Sekarang",
+- penanda titik observasi terakhir.
 """
 
 from __future__ import annotations
@@ -40,13 +43,16 @@ def get_now_jkt() -> datetime:
 DATA_FILE_HIBRIDA = "HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv"
 DATA_FILE_LSTM = "HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv"
 DATA_FILE_OBSERVASI = "HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv"
-DATA_FILE_15MIN = "HASIL_SCRAPING_15_MENITAN_DSDA.csv" # File baru
+DATA_FILE_15MIN = "HASIL_SCRAPING_15_MENITAN_DSDA.csv"
 
 COL_DATETIME = "Datetime"
 COL_OBSERVASI = "TMA_Pasar_Ikan"
 COL_UTIDE = "Prediksi_Harmonik_UTIDE"
 COL_LSTM = "Prediksi_LSTM_Murni"
 COL_HIBRIDA = "Prediksi_Hibrida_Final"
+
+# Buffer data (sebelum awal jendela) yang ikut digambar agar garis tidak terpotong di tepi kiri
+BUFFER_PLOT = timedelta(hours=6)
 
 # Palet warna: seri data memakai skema yang aman bagi pembaca buta warna
 # (biru, hijau kebiruan, biru muda, magenta) dan dibedakan juga lewat gaya garis.
@@ -529,14 +535,21 @@ def _add_alert_zones(fig: go.Figure, dynamic_min: float, dynamic_max: float) -> 
         fig.add_hrect(y0=y0_clip, y1=y1_clip, fillcolor=warna, opacity=opacity, line_width=0, layer="below")
         fig.add_annotation(xref="paper", yref="y", x=0.995, y=(y0_clip + y1_clip) / 2, text=label, showarrow=False, xanchor="right", yanchor="middle", font=dict(color="#5B6B7A", size=11))
 
-def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict], show_15min: bool) -> go.Figure:
-    all_mins = [df_filtered[COL_OBSERVASI].min(), df_filtered[COL_UTIDE].min(), df_filtered[COL_HIBRIDA].min(), df_filtered[COL_LSTM].min()]
-    valid_mins = [v for v in all_mins if pd.notna(v)]
-    current_min = min(valid_mins) if valid_mins else 100
+def build_comparison_chart(df_plot: pd.DataFrame, data_dsda: Optional[dict], show_15min: bool, x_range: tuple) -> go.Figure:
+    """
+    df_plot : data jendela + buffer BUFFER_PLOT sebelum awal jendela (hanya untuk digambar).
+    x_range : (awal, akhir) jendela asli; sumbu X dikunci ke sini sehingga buffer
+              tidak terlihat tetapi garis masuk mulus dari tepi kiri.
+    """
+    x_start, x_end = x_range
 
-    all_maxs = [df_filtered[COL_OBSERVASI].max(), df_filtered[COL_UTIDE].max(), df_filtered[COL_HIBRIDA].max(), df_filtered[COL_LSTM].max()]
-    valid_maxs = [v for v in all_maxs if pd.notna(v)]
-    current_max = max(valid_maxs) if valid_maxs else 280
+    # Skala Y dihitung dari isi jendela saja (bukan dari buffer)
+    df_win = df_plot[(df_plot[COL_DATETIME] >= x_start) & (df_plot[COL_DATETIME] <= x_end)]
+    kolom_seri = [COL_OBSERVASI, COL_UTIDE, COL_HIBRIDA, COL_LSTM]
+    vmin = df_win[kolom_seri].min().min()
+    vmax = df_win[kolom_seri].max().max()
+    current_min = float(vmin) if pd.notna(vmin) else 100
+    current_max = float(vmax) if pd.notna(vmax) else 280
 
     dynamic_min = current_min - 10
     dynamic_max = max(280, current_max + 10)
@@ -544,17 +557,44 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict],
     fig = go.Figure()
     _add_alert_zones(fig, dynamic_min, dynamic_max)
 
-    # 1. Plot Utama (Observasi Jam-jaman)
-    if df_filtered[COL_OBSERVASI].notna().sum() > 0:
-        fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_OBSERVASI], mode="lines", name="Observasi per jam", line=dict(color=COLOR_PALETTE["observasi"], width=2.4, shape="spline", smoothing=0.9), connectgaps=False))
+    waktu_sekarang = get_now_jkt()
+    in_window = x_start <= waktu_sekarang <= x_end
 
-    # 2. Plot Realtime 15-Menit (Jika dicentang user)
+    # Shading tipis area prediksi masa depan (setelah "Sekarang")
+    if in_window:
+        fig.add_shape(
+            type="rect", xref="x", yref="paper",
+            x0=waktu_sekarang, x1=x_end, y0=0, y1=1,
+            fillcolor="rgba(18,38,58,0.045)", line_width=0, layer="below",
+        )
+
+    # 1. Observasi per jam, dengan area fill gradien di bawah garis
+    if df_plot[COL_OBSERVASI].notna().sum() > 0:
+        obs_kwargs = dict(
+            x=df_plot[COL_DATETIME], y=df_plot[COL_OBSERVASI], mode="lines",
+            name="Observasi per jam",
+            line=dict(color=COLOR_PALETTE["observasi"], width=2.2, shape="spline", smoothing=0.9),
+            connectgaps=False, fill="tozeroy",
+        )
+        try:
+            obs_max = float(df_win[COL_OBSERVASI].max())
+            trace_obs = go.Scatter(
+                **obs_kwargs,
+                fillgradient=dict(
+                    type="vertical", start=dynamic_min, stop=obs_max,
+                    colorscale=[[0, "rgba(18,38,58,0.00)"], [1, "rgba(18,38,58,0.30)"]],
+                ),
+            )
+        except Exception:  # plotly lama tanpa fillgradient -> fill transparan biasa
+            trace_obs = go.Scatter(**obs_kwargs, fillcolor="rgba(18,38,58,0.12)")
+        fig.add_trace(trace_obs)
+
+    # 2. Plot Realtime 15-Menit (jika dicentang user)
     if show_15min:
         df_15 = fetch_15min_data()
         if not df_15.empty:
-            # Filter rentang waktu 15 menitan agar sama persis dengan master view
-            min_dt, max_dt = df_filtered[COL_DATETIME].min(), df_filtered[COL_DATETIME].max()
-            df_15_filt = df_15[(df_15[COL_DATETIME] >= min_dt) & (df_15[COL_DATETIME] <= max_dt)]
+            lo, hi = df_plot[COL_DATETIME].min(), df_plot[COL_DATETIME].max()
+            df_15_filt = df_15[(df_15[COL_DATETIME] >= lo) & (df_15[COL_DATETIME] <= hi)]
             if not df_15_filt.empty:
                 fig.add_trace(go.Scatter(
                     x=df_15_filt[COL_DATETIME], y=df_15_filt[COL_OBSERVASI],
@@ -566,33 +606,34 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict],
                 ))
 
     # 3. Prediksi Model (dibedakan warna dan gaya garis)
-    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_UTIDE], mode="lines", name="Prediksi UTide", line=dict(color=COLOR_PALETTE["utide"], width=1.8, dash="dash", shape="spline", smoothing=0.9)))
-    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_LSTM], mode="lines", name="Prediksi LSTM", line=dict(color=COLOR_PALETTE["lstm"], width=2.0, dash="dot", shape="spline", smoothing=0.9)))
-    fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida", line=dict(color=COLOR_PALETTE["hibrida"], width=2.8, shape="spline", smoothing=0.9)))
+    fig.add_trace(go.Scatter(x=df_plot[COL_DATETIME], y=df_plot[COL_UTIDE], mode="lines", name="Prediksi UTide", line=dict(color=COLOR_PALETTE["utide"], width=1.8, dash="dash", shape="spline", smoothing=0.9)))
+    fig.add_trace(go.Scatter(x=df_plot[COL_DATETIME], y=df_plot[COL_LSTM], mode="lines", name="Prediksi LSTM", line=dict(color=COLOR_PALETTE["lstm"], width=2.0, dash="dot", shape="spline", smoothing=0.9)))
+    fig.add_trace(go.Scatter(x=df_plot[COL_DATETIME], y=df_plot[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida", line=dict(color=COLOR_PALETTE["hibrida"], width=2.8, shape="spline", smoothing=0.9)))
 
     # Garis Waktu Sekarang
-    # CATATAN PERBAIKAN: fig.add_vline(..., annotation_text=...) memicu TypeError pada sumbu waktu
+    # CATATAN: fig.add_vline(..., annotation_text=...) memicu TypeError pada sumbu waktu
     # di plotly versi baru (error di sum(x)). Jadi garis dan label dibuat terpisah:
     # add_shape untuk garis vertikal, add_annotation untuk labelnya.
-    if data_dsda and data_dsda["tma"] is not None:
-        waktu_sekarang_jam = get_now_jkt()
-        min_date = df_filtered[COL_DATETIME].min()
-        max_date = df_filtered[COL_DATETIME].max()
-        if pd.notna(min_date) and pd.notna(max_date) and min_date <= waktu_sekarang_jam <= max_date:
-            jam_menit_str = waktu_sekarang_jam.strftime("%H:%M")
-            fig.add_shape(
-                type="line",
-                x0=waktu_sekarang_jam, x1=waktu_sekarang_jam, xref="x",
-                y0=0, y1=1, yref="paper",
-                line=dict(width=1.4, dash="dot", color="#12263A"),
-            )
-            fig.add_annotation(
-                x=waktu_sekarang_jam, y=1, xref="x", yref="paper",
-                text=f" Sekarang, {jam_menit_str} WIB",
-                showarrow=False, xanchor="left", yanchor="top",
-                font=dict(color="#12263A", size=11),
-                bgcolor="rgba(255,255,255,0.85)",
-            )
+    if data_dsda and data_dsda["tma"] is not None and in_window:
+        fig.add_shape(
+            type="line",
+            x0=waktu_sekarang, x1=waktu_sekarang, xref="x",
+            y0=0, y1=1, yref="paper",
+            line=dict(width=1.4, dash="dot", color="#12263A"),
+        )
+        fig.add_annotation(
+            x=waktu_sekarang, y=1, xref="x", yref="paper",
+            text=f" Sekarang, {waktu_sekarang.strftime('%H:%M')} WIB",
+            showarrow=False, xanchor="left", yanchor="top",
+            font=dict(color="#12263A", size=11),
+            bgcolor="rgba(255,255,255,0.85)",
+        )
+        # Penanda titik observasi terakhir
+        fig.add_trace(go.Scatter(
+            x=[waktu_sekarang], y=[data_dsda["tma"]], mode="markers",
+            showlegend=False, hoverinfo="skip",
+            marker=dict(size=9, color=COLOR_PALETTE["live_15m"], line=dict(width=2, color="#FFFFFF")),
+        ))
 
     fonts = "IBM Plex Sans, Segoe UI, Arial, sans-serif"
     sumbu_font = dict(family=fonts, size=11, color="#5B6B7A")
@@ -606,6 +647,7 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict],
         hoverlabel=dict(bgcolor="white", bordercolor="#D5DDE5", font=dict(size=12, family=fonts, color="#12263A")),
         font=dict(family=fonts, color="#12263A", size=12),
         xaxis=dict(
+            range=[x_start, x_end],  # jendela dikunci; data buffer tidak kelihatan
             tickfont=sumbu_font, showgrid=False, showline=True, linecolor="#9AA7B3", ticks="outside", tickcolor="#9AA7B3",
             tickformat="%d %b", hoverformat="%d %b %Y, %H:%M",
             tickformatstops=[dict(dtickrange=[None, 86400000], value="%d %b<br>%H:%M")],
@@ -619,12 +661,15 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict],
     )
     return fig
 
-def render_chart_section(pilihan_mode: str, df_filtered: pd.DataFrame, data_dsda: Optional[dict], show_15min: bool) -> None:
+def render_chart_section(pilihan_mode: str, df_plot: pd.DataFrame, data_dsda: Optional[dict], show_15min: bool, x_range: Optional[tuple]) -> None:
     st.markdown(
         build_section_header_html("Observasi dan prediksi", html.escape(pilihan_mode)),
         unsafe_allow_html=True,
     )
-    fig = build_comparison_chart(df_filtered, data_dsda, show_15min)
+    if x_range is None:
+        st.info("Tidak ada data pada rentang waktu ini.")
+        return
+    fig = build_comparison_chart(df_plot, data_dsda, show_15min, x_range)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     st.markdown(
         '<div class="fig-caption"><b>Gambar 1.</b> Tinggi muka air observasi dibandingkan dengan prediksi '
@@ -835,14 +880,23 @@ def main() -> None:
     mask = filter_by_preset(df_master, pilihan_mode, custom_start, custom_end)
     df_filtered = df_master[mask].copy()
 
+    # Data untuk grafik = jendela + buffer sebelum awal jendela (hanya untuk menggambar).
+    # KPI, tabel, dan evaluasi tetap memakai df_filtered, jadi angka tidak berubah.
+    if df_filtered.empty:
+        df_plot, x_range = df_filtered, None
+    else:
+        x_range = (df_filtered[COL_DATETIME].min(), df_filtered[COL_DATETIME].max())
+        mask_plot = (df_master[COL_DATETIME] >= x_range[0] - BUFFER_PLOT) & (df_master[COL_DATETIME] <= x_range[1])
+        df_plot = df_master[mask_plot].copy()
+
     kpi = compute_kpis(df_filtered)
     render_sidebar_info(pilihan_mode, df_filtered)
 
     render_header(data_dsda)
     render_kpi_section(kpi)
 
-    # 1. GRAFIK TERLEBIH DAHULU (Dengan parameter show_15min)
-    render_chart_section(pilihan_mode, df_filtered, data_dsda, show_15min)
+    # 1. GRAFIK TERLEBIH DAHULU
+    render_chart_section(pilihan_mode, df_plot, data_dsda, show_15min, x_range)
 
     # 2. ANALISIS KINERJA (EVALUASI TESIS)
     render_thesis_analysis(df_master, df_filtered)
