@@ -53,12 +53,16 @@ jobs:
           git checkout main
           
           # 2. Stage semua aset model, scaler, dan CSV hasil ramalan 7 hari terbaru
-          git add model_pasar_ikan_lstm_murni_master.keras \
-                  model_pasar_ikan_master.keras \
-                  scaler_residu_pasar_ikan.save \
-                  scaler_tma_pasar_ikan_lstm_murni.save \
-                  HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv \
-                  HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv
+          for f in model_pasar_ikan_lstm_murni_master.keras \
+                   model_pasar_ikan_master.keras \
+                   scaler_residu_pasar_ikan.save \
+                   scaler_tma_pasar_ikan_lstm_murni.save \
+                   HASIL_FINAL_TESIS_PASUT_HIBRIDA.csv \
+                   HASIL_FINAL_TESIS_PASUT_LSTM_MURNI.csv \
+                   STATUS_PIPELINE.json \
+                   LOG_VERIFIKASI_MINGGUAN.csv; do
+            if [ -f "$f" ]; then git add "$f"; fi
+          done
           
           # 3. Cek perubahan, jika ada lakukan rebase aman lalu push ke server
           if ! git diff --cached --quiet; then
