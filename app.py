@@ -585,11 +585,11 @@ def build_comparison_chart(df_plot: pd.DataFrame, data_dsda: Optional[dict], sho
                 **obs_kwargs,
                 fillgradient=dict(
                     type="vertical", start=dynamic_min, stop=obs_max,
-                    colorscale=[[0, "rgba(18,38,58,0.00)"], [1, "rgba(18,38,58,0.30)"]],
+                    colorscale=[[0, "rgba(86,180,233,0.10)"], [1, "rgba(41,128,205,0.48)"]],
                 ),
             )
         except Exception:  # plotly lama tanpa fillgradient -> fill transparan biasa
-            trace_obs = go.Scatter(**obs_kwargs, fillcolor="rgba(18,38,58,0.12)")
+            trace_obs = go.Scatter(**obs_kwargs, fillcolor="rgba(86,180,233,0.28)")
         fig.add_trace(trace_obs)
 
     # 2. Plot Realtime 15-Menit (jika dicentang user)
