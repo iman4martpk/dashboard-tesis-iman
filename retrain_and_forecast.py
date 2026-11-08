@@ -92,6 +92,7 @@ HOLDOUT_HARI = 28        # harus > 21 hari (satu window = 504 jam)
 TOLERANSI_VAL = 0.0      # diterima bila val_mse <= val_mse_lama * (1 + toleransi)
 STRIDE_LATIH = 1         # naikkan (2-6) bila runner terlalu lambat
 MIN_WINDOW_LATIH = 1000
+MIN_WINDOW_HOLDOUT = 24   # minimum window holdout; bila kurang (ada gap di data terbaru) dipakai window valid terbaru
 FT_BATAS_MENIT = 90      # batas waktu training, dipotong bila lewat
 
 # Pemicu fine-tuning otomatis
@@ -319,8 +320,18 @@ def latih_ulang(spec, simpan):
     valid = np.flatnonzero(~np.isnan(windows).any(axis=1))
 
     val_start = n - HOLDOUT_HARI * 24
-    train_starts = valid[valid + span <= val_start][::STRIDE_LATIH]
     val_starts = valid[valid >= val_start]
+    if len(val_starts) < MIN_WINDOW_HOLDOUT and len(valid) > 0:
+        # Ada gap panjang di HOLDOUT_HARI terakhir sehingga hampir tidak ada window utuh.
+        # Pakai window valid terbaru sebagai holdout (tetap kronologis dan tidak overlap
+        # dengan data latih), alih-alih membatalkan seluruh fine-tuning.
+        n_val = HOLDOUT_HARI * 24 - span + 1
+        val_starts = valid[-n_val:]
+        val_start = int(val_starts[0])
+        logger.warning("[%s] Data %d hari terakhir berlubang; holdout memakai %d window valid "
+                       "terbaru (berakhir %s).", spec.nama, HOLDOUT_HARI, len(val_starts),
+                       spec.seri.index[int(val_starts[-1]) + span - 1])
+    train_starts = valid[valid + span <= val_start][::STRIDE_LATIH]
     if len(train_starts) < MIN_WINDOW_LATIH or len(val_starts) == 0:
         logger.warning("[%s] Window tidak cukup (latih %d, holdout %d). Fine-tuning dilewati.",
                        spec.nama, len(train_starts), len(val_starts))
@@ -722,6 +733,8 @@ def main():
                 spec.model = tf.keras.models.load_model(spec.path_model)
             except Exception:
                 pass
+        if info.get("hasil") == "dilewati":
+            continue  # bukan percobaan sungguhan: jangan picu cooldown 14 hari
         status["finetune"][spec.kunci] = {"terakhir_coba": sekarang, "obs_saat_coba": str(t_last),
                                           "alasan": alasan, **info}
 
