@@ -5,9 +5,15 @@ on:
     types: [trigger_ml_pipeline] # 🎯 SINKRONKAN: Pastikan payload GAS mengirim event_type ini!
   workflow_dispatch:
 
+# Satu run pada satu waktu; run yang antre tidak jalan paralel (hindari tabrakan commit model).
+concurrency:
+  group: ml-pipeline
+  cancel-in-progress: false
+
 jobs:
   train_and_update_model:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     
     permissions:
       contents: write
@@ -19,13 +25,26 @@ jobs:
           persist-credentials: true # 🔑 WAJIB: Izin token internal untuk melakukan git push
           fetch-depth: 0             # 📚 WAJIB: Mengambil seluruh history commit agar rebase tidak error
 
+      - name: 🛡️ Guard - lewati trigger otomatis bila retrain terakhir < 5 hari lalu
+        id: guard
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          last=$(git log -1 --format=%ct --grep="Auto-retrain" || true)
+          now=$(date +%s)
+          if [ -n "$last" ] && [ $((now - last)) -lt 432000 ]; then
+            echo "ℹ️ Retrain terakhir kurang dari 5 hari lalu. Trigger ini dilewati."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: 🐍 Set up Python (Disamakan dengan Laptop)
+        if: steps.guard.outputs.skip != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.12.7'  # Sesuai spek laptop
           cache: 'pip'
           
       - name: 📦 Install ML Dependencies (versi di-pin, disamakan dengan laptop)
+        if: steps.guard.outputs.skip != 'true'
         run: |
           python -m pip install --upgrade pip
           pip install \
@@ -41,9 +60,11 @@ jobs:
             streamlit==1.56.0
           
       - name: 🧠 Eksekusi Script Training & Forecast Seq2Seq
+        if: steps.guard.outputs.skip != 'true'
         run: python retrain_and_forecast.py 
         
       - name: 📤 Commit & Push Update Model Baru & Hasil Forecast
+        if: steps.guard.outputs.skip != 'true'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
