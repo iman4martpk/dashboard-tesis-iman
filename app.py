@@ -330,13 +330,26 @@ def build_comparison_chart(df_filtered: pd.DataFrame, data_dsda: Optional[dict],
     fig.add_trace(go.Scatter(x=df_filtered[COL_DATETIME], y=df_filtered[COL_HIBRIDA], mode="lines", name="Prediksi Hibrida (Integrasi)", line=dict(color=COLOR_PALETTE["hibrida"], width=2.0, shape="spline", smoothing=0.9)))
 
     # Garis Waktu Sekarang
+    # CATATAN PERBAIKAN: fig.add_vline(..., annotation_text=...) memicu TypeError pada sumbu waktu
+    # di plotly versi baru (error di sum(x)). Jadi garis dan label dibuat terpisah:
+    # add_shape untuk garis vertikal, add_annotation untuk labelnya.
     if data_dsda and data_dsda["tma"] is not None:
         waktu_sekarang_jam = get_now_jkt()
         min_date = df_filtered[COL_DATETIME].min()
         max_date = df_filtered[COL_DATETIME].max()
         if pd.notna(min_date) and pd.notna(max_date) and min_date <= waktu_sekarang_jam <= max_date:
             jam_menit_str = waktu_sekarang_jam.strftime("%H:%M")
-            fig.add_vline(x=waktu_sekarang_jam, line_width=1.5, line_dash="dot", line_color="#334155", annotation_text=f" Waktu Sekarang ({jam_menit_str} WIB)", annotation_position="top right")
+            fig.add_shape(
+                type="line",
+                x0=waktu_sekarang_jam, x1=waktu_sekarang_jam, xref="x",
+                y0=0, y1=1, yref="paper",
+                line=dict(width=1.5, dash="dot", color="#334155"),
+            )
+            fig.add_annotation(
+                x=waktu_sekarang_jam, y=1, xref="x", yref="paper",
+                text=f" Waktu Sekarang ({jam_menit_str} WIB)",
+                showarrow=False, xanchor="left", yanchor="top",
+            )
 
     fig.update_layout(height=450, template="plotly_white", margin=dict(l=10, r=10, t=25, b=10), hovermode="x unified", hoverlabel=dict(bgcolor="white", font_size=11, font_family="Arial"), xaxis=dict(tickfont=dict(size=10, family="Arial")), yaxis=dict(title=dict(text="Tinggi Air (cm)", font=dict(size=11, family="Arial")), tickfont=dict(size=10, family="Arial"), range=[dynamic_min, dynamic_max]), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, family="Arial")), font=dict(family="Arial, Helvetica, sans-serif", color="#1E293B"))
     return fig
