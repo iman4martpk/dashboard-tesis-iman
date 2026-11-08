@@ -503,7 +503,7 @@ def build_active_period_html(pilihan_mode: str, df_filtered: pd.DataFrame) -> st
         '<div class="kv">'
         f'<span>Awal</span><span>{awal}</span>'
         f'<span>Akhir</span><span>{akhir}</span>'
-        f'<span>Jam tersedia</span><span>{n_total}</span>'
+        f'<span>Jam dalam periode</span><span>{n_total}</span>'
         f'<span>Jam terobservasi</span><span>{n_obs}</span>'
         '</div>'
     )
