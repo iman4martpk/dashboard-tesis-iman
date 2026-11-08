@@ -1,68 +1,43 @@
-name: 🛰️ Jalur 1 - Scraper TMA 15 Menitan (Hourly)
+name: Jalur 1 - Scraper TMA 15 Menitan (Hourly)
 
 on:
-  schedule:
-    # Berjalan otomatis setiap 15 menit agar grafik rapat/nempel waktu sekarang
-    - cron: '*/15 * * * *'
-  workflow_dispatch:
-    # Memunculkan tombol "Run workflow" manual di GitHub Actions
   repository_dispatch:
-    # 🎯 GERBANG UTAMA: Menerima tembakan API dari Google Apps Script
     types: [run_scrape_hourly]
+  schedule:
+    - cron: "7,22,37,52 * * * *"   # cadangan, hindari menit :00 yang padat
+  workflow_dispatch:
 
-# 🔒 Satu run pada satu waktu: mencegah dua run (cron + GAS) edit CSV yang sama bersamaan
 concurrency:
-  group: scraper-data
+  group: scrape-tma
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
-  scrape_and_update_data:
+  scrape:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-
+    timeout-minutes: 10
     steps:
-      - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
-          persist-credentials: true
-          fetch-depth: 0
+          python-version: "3.12"
+          cache: pip
 
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - run: pip install selenium webdriver-manager pytz
 
-      - name: 📦 Install Dependencies Scraper
+      - name: Eksekusi Script Scraper TMA
+        run: python scrape_hourly.py
+
+      - name: Commit & Push hasil scrape
+        if: ${{ !cancelled() }}
         run: |
-          python -m pip install --upgrade pip
-          pip install pandas requests beautifulsoup4 lxml pytz selenium webdriver-manager
-
-      - name: 🌐 Eksekusi Script Scraper TMA
-        run: |
-          python scrape_hourly.py
-
-      - name: 📤 Commit & Push Hasil Scrape Observasi Terbaru
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-          # 1. Posisikan Git pada branch main secara bersih
-          git fetch origin main
-          git checkout main
-
-          # 2. Masukkan KEDUA file observasi (Jam-jaman & 15-Menitan) ke staging area
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add HASIL_FINAL_TESIS_PASUT_OBSERVASI.csv HASIL_SCRAPING_15_MENITAN_DSDA.csv
-
-          # 3. Cek apakah benar-benar ada data baru yang masuk
-          if ! git diff --cached --quiet; then
-            echo "✅ Data observasi baru terdeteksi. Bersiap melakukan commit..."
-            git commit -m "🤖 Auto-scrape: Update data observasi aktual TMA Pasar Ikan"
-
-            # 4. Ambil update terbaru dari server dengan aman (anti-bentrok), lalu push
-            git pull origin main --rebase -X theirs
-            git push origin main
-          else
-            echo "ℹ️ Tidak ada data baru dari situs target. Proses push dilewati."
-          fi
+          if git diff --cached --quiet; then echo "Tidak ada data baru"; exit 0; fi
+          git commit -m "Auto-scrape: update data observasi TMA Pasar Ikan"
+          git pull --rebase origin main
+          git push
