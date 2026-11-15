@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   train_and_update_model:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # 🔒 Di-pin (bukan ubuntu-latest) karena Python 3.12.7 belum tersedia di Ubuntu 26.04
     timeout-minutes: 120
     
     permissions:
