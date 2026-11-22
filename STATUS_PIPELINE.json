@@ -1,14 +1,14 @@
 {
   "finetune": {
     "lstm": {
-      "terakhir_coba": "2026-11-08 12:27:05",
-      "obs_saat_coba": "2026-11-08 18:00:00",
-      "alasan": "data baru 343 hari sejak 2025-11-30; RMSE 28 hari 1.53x RMSE kumulatif",
+      "terakhir_coba": "2026-11-22 17:53:20",
+      "obs_saat_coba": "2026-11-23 00:00:00",
+      "alasan": "RMSE 28 hari 1.40x RMSE kumulatif",
       "hasil": "ditolak",
-      "rmse_holdout_lama": 11.427991984858446,
+      "rmse_holdout_lama": 11.786624514950924,
       "terpotong": false,
-      "rmse_holdout_baru": 11.527867926010483,
-      "epoch_terbaik": 7
+      "rmse_holdout_baru": 11.859448378195193,
+      "epoch_terbaik": 6
     },
     "hibrida": {
       "terakhir_coba": "2026-11-08 12:27:05",
@@ -21,6 +21,6 @@
       "epoch_terbaik": 1
     }
   },
-  "terakhir_run": "2026-11-15 18:41:40",
-  "obs_terakhir_sukses": "2026-11-16 01:00:00"
+  "terakhir_run": "2026-11-22 17:53:20",
+  "obs_terakhir_sukses": "2026-11-23 00:00:00"
 }
